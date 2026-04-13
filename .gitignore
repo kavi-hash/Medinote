@@ -2,10 +2,9 @@ venv/
 __pycache__/
 *.pyc
 .env
-*.sqlite3
 *.db
-node_modules/
+*.sqlite3
+.cache/
 dist/
 build/
-.cache/
-*.log
+node_modules/
