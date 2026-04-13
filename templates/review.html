@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex align-items-center gap-3">
+    <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+      <h5 class="fw-bold mb-0">
+        <i class="bi bi-person-circle text-primary me-2"></i>{{ consultation.patient_name }}
+      </h5>
+      <small class="text-muted">
+        Dr. {{ consultation.doctor_name }} &nbsp;·&nbsp;
+        {{ consultation.created_at.strftime("%d %b %Y, %H:%M") }} &nbsp;·&nbsp;
+        {% if consultation.status == "approved" %}
+          <span class="badge bg-success">Approved</span>
+        {% elif consultation.status == "ready" %}
+          <span class="badge bg-info text-dark">Ready for review</span>
+        {% else %}
+          <span class="badge bg-secondary">{{ consultation.status }}</span>
+        {% endif %}
+      </small>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-success btn-sm" id="save-btn" onclick="saveNote()">
+      <i class="bi bi-floppy me-1"></i>Save edits
+    </button>
+    {% if consultation.status != "approved" %}
+    <form method="POST" action="{{ url_for('consultation.approve', id=consultation.id) }}" class="d-inline">
+      <button type="submit" class="btn btn-success btn-sm"
+              onclick="return confirm('Approve and finalise this consultation?')">
+        <i class="bi bi-check-circle me-1"></i>Approve
+      </button>
+    </form>
+    {% else %}
+    {% if consultation.status == "approved" %}
+    {% set qr_token = consultation.id|string + "-" %}
+    <a href="{{ url_for('consultation.export_pdf', id=consultation.id) }}"
+       class="btn btn-primary btn-sm">
+      <i class="bi bi-file-pdf me-1"></i>Export PDF
+    </a>
+    <a href="/patient/{{ consultation.id }}-{{ 
+         consultation.patient_name | md5_token(consultation.id) }}"
+       target="_blank" class="btn btn-outline-success btn-sm">
+      <i class="bi bi-qr-code me-1"></i>Patient view
+    </a>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- Audio player -->
+{% if consultation.audio_file %}
+<div class="card mb-3 p-3">
+  <div class="d-flex align-items-center gap-3">
+    <i class="bi bi-soundwave text-primary" style="font-size:1.4rem"></i>
+    <div class="flex-grow-1">
+      <audio controls class="w-100" style="height:36px">
+        <source src="{{ url_for('consultation.serve_audio', filename=consultation.audio_file) }}"
+                type="audio/mpeg">
+        Your browser does not support audio playback.
+      </audio>
+    </div>
+    <small class="text-muted">{{ consultation.audio_file }}</small>
+  </div>
+</div>
+{% endif %}
+<!-- Prescription panel -->
+<div class="card mt-3" id="rx-panel">
+  <div class="card-header bg-white border-bottom py-2 d-flex justify-content-between align-items-center">
+    <span class="fw-bold">
+      <i class="bi bi-capsule text-primary me-2"></i>Prescription
+    </span>
+    {% if consultation.status != "approved" %}
+    <button class="btn btn-sm btn-outline-primary" onclick="addMedicineRow()">
+      <i class="bi bi-plus me-1"></i>Add medicine
+    </button>
+    {% endif %}
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0" id="rx-table">
+      <thead class="table-light">
+        <tr>
+          <th style="width:22%">Medicine name</th>
+          <th style="width:14%">Dosage</th>
+          <th style="width:18%">Frequency</th>
+          <th style="width:14%">Duration</th>
+          <th style="width:22%">Instructions</th>
+          {% if consultation.status != "approved" %}
+          <th style="width:10%"></th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody id="rx-body">
+        <!-- Filled by JS -->
+      </tbody>
+    </table>
+    <div id="rx-empty" class="text-center text-muted py-3 d-none"
+         style="font-size:.88rem">
+      <i class="bi bi-capsule me-2"></i>No medicines added yet
+    </div>
+  </div>
+  {% if consultation.status != "approved" %}
+  <div class="card-footer bg-white border-top py-2 d-flex justify-content-between">
+    <span class="text-muted" style="font-size:.82rem">
+      <i class="bi bi-info-circle me-1"></i>
+      Medicines extracted from transcript are pre-filled below
+    </span>
+    <button class="btn btn-sm btn-success" onclick="savePrescriptions()">
+      <i class="bi bi-floppy me-1"></i>Save prescription
+    </button>
+  </div>
+  {% endif %}
+</div>
+<!-- 3-panel layout -->
+<div class="row g-3">
+
+  <!-- Panel 1: Transcript -->
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header bg-white border-bottom py-2">
+        <span class="fw-bold">
+          <i class="bi bi-chat-left-text text-primary me-2"></i>Transcript
+        </span>
+        <span class="badge bg-light text-dark ms-2">{{ transcripts|length }} segments</span>
+      </div>
+      <div class="card-body p-0" style="max-height:520px; overflow-y:auto">
+        {% if transcripts %}
+          {% for t in transcripts %}
+          <div class="p-3 border-bottom transcript-segment"
+               style="cursor:pointer"
+               onmouseover="this.style.background='#f8f9fa'"
+               onmouseout="this.style.background='white'">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              {% if t.speaker == "DOCTOR" %}
+                <span class="badge bg-primary" style="font-size:0.7rem">
+                  <i class="bi bi-person-badge me-1"></i>Doctor
+                </span>
+              {% else %}
+                <span class="badge bg-success" style="font-size:0.7rem">
+                  <i class="bi bi-person me-1"></i>Patient
+                </span>
+              {% endif %}
+              <small class="text-muted">
+                {{ "%.1f"|format(t.start_time) }}s – {{ "%.1f"|format(t.end_time) }}s
+              </small>
+            </div>
+            <p class="mb-0 mt-1" style="font-size:0.9rem; line-height:1.5">
+              {{ t.text }}
+            </p>
+            {% if consultation.status != "approved" %}
+            <button class="btn btn-outline-secondary mt-1"
+                    style="font-size:0.7rem; padding:1px 8px"
+                    onclick="toggleSpeaker({{ t.id }}, this)">
+              <i class="bi bi-arrow-repeat me-1"></i>Switch speaker
+            </button>
+            {% endif %}
+            {% if t.confidence and t.confidence < 0 %}
+            <small class="text-warning">
+              <i class="bi bi-exclamation-triangle me-1"></i>Low confidence
+            </small>
+            {% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="text-center text-muted py-5">
+            <i class="bi bi-chat-left-text" style="font-size:2rem"></i>
+            <p class="mt-2">No transcript available</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 2: Entities -->
+  <div class="col-md-3">
+    <div class="card h-100">
+      <div class="card-header bg-white border-bottom py-2">
+        <span class="fw-bold">
+          <i class="bi bi-search-heart text-danger me-2"></i>Clinical entities
+        </span>
+      </div>
+      <div class="card-body" style="max-height:520px; overflow-y:auto">
+        {% set entity_map = {} %}
+        {% for e in entities %}
+          {% if e.entity_type not in entity_map %}
+            {% set _ = entity_map.update({e.entity_type: []}) %}
+          {% endif %}
+          {% set _ = entity_map[e.entity_type].append(e.entity_value) %}
+        {% endfor %}
+
+        {% set sections = [
+          ("symptoms",    "bi-thermometer-half", "bg-danger",   "Symptoms"),
+          ("medications", "bi-capsule",           "bg-primary",  "Medications"),
+          ("diagnoses",   "bi-clipboard2-pulse",  "bg-warning",  "Diagnoses"),
+          ("allergies",   "bi-shield-exclamation","bg-orange",   "Allergies"),
+          ("vitals",      "bi-heart-pulse",       "bg-info",     "Vitals"),
+          ("follow_up",   "bi-calendar-check",    "bg-success",  "Follow-up")
+        ] %}
+
+        {% for key, icon, color, label in sections %}
+          {% if key in entity_map and entity_map[key] %}
+          <div class="mb-3">
+            <div class="d-flex align-items-center mb-2">
+              <i class="bi {{ icon }} me-2 text-muted"></i>
+              <span class="fw-semibold" style="font-size:0.85rem">{{ label }}</span>
+            </div>
+            {% for val in entity_map[key] %}
+              <span class="badge me-1 mb-1 {{ color }} text-wrap"
+                    style="font-size:0.78rem; font-weight:400; padding:5px 10px">
+                {{ val }}
+              </span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        {% endfor %}
+
+        {% if not entities %}
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-search" style="font-size:2rem"></i>
+          <p class="mt-2" style="font-size:0.85rem">No entities extracted</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 3: SOAP Note -->
+  <div class="col-md-5">
+    <div class="card h-100">
+      <div class="card-header bg-white border-bottom py-2 d-flex justify-content-between">
+        <span class="fw-bold">
+          <i class="bi bi-file-medical text-success me-2"></i>SOAP note
+        </span>
+        {% if consultation.status == "approved" %}
+          <span class="badge bg-success">
+            <i class="bi bi-lock me-1"></i>Approved
+          </span>
+        {% else %}
+          <span class="badge bg-warning text-dark">
+            <i class="bi bi-pencil me-1"></i>Editable
+          </span>
+        {% endif %}
+      </div>
+      <div class="card-body" style="max-height:520px; overflow-y:auto">
+        {% if note %}
+          {% set soap = note.edited_note | safe %}
+
+          {% for section, icon, color, label in [
+            ("subjective", "bi-person-lines-fill", "primary",  "S — Subjective"),
+            ("objective",  "bi-clipboard2-data",   "info",     "O — Objective"),
+            ("assessment", "bi-lightbulb",          "warning",  "A — Assessment"),
+            ("plan",       "bi-calendar2-check",    "success",  "P — Plan")
+          ] %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold text-{{ color }} mb-1" style="font-size:0.85rem">
+              <i class="bi {{ icon }} me-1"></i>{{ label }}
+            </label>
+            {% if consultation.status != "approved" %}
+            <textarea class="form-control soap-field"
+                      id="soap-{{ section }}"
+                      rows="3"
+                      style="font-size:0.88rem; resize:vertical; border-color:#dee2e6"
+                      data-section="{{ section }}">{{ note.edited_note | soap_section(section) }}</textarea>
+            {% else %}
+            <div class="p-2 rounded bg-light" style="font-size:0.88rem; line-height:1.6">
+              {{ note.edited_note | soap_section(section) }}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+
+        {% else %}
+          <div class="text-center text-muted py-5">
+            <i class="bi bi-file-medical" style="font-size:2rem"></i>
+            <p class="mt-2">No note generated yet</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Save toast notification -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+  <div id="save-toast" class="toast align-items-center text-bg-success border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body">
+        <i class="bi bi-check-circle me-2"></i>Note saved successfully
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto"
+              data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+const consultationId = {{ consultation.id }};
+
+async function saveNote() {
+  const fields = document.querySelectorAll(".soap-field");
+  let noteObj  = {};
+  fields.forEach(f => noteObj[f.dataset.section] = f.value);
+
+  const btn = document.getElementById("save-btn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+  const res = await fetch(`/api/update-note/${consultationId}`, {
+    method:  "POST",
+    headers: {"Content-Type": "application/json"},
+    body:    JSON.stringify({ note: noteObj })
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-floppy me-1"></i>Save edits';
+
+  if (res.ok) {
+    const toast = new bootstrap.Toast(document.getElementById("save-toast"));
+    toast.show();
+  }
+}
+async function toggleSpeaker(transcriptId, btn) {
+  const badge   = btn.closest(".transcript-segment").querySelector(".badge");
+  const current = badge.textContent.trim().includes("Doctor") ? "DOCTOR" : "PATIENT";
+  const next    = current === "DOCTOR" ? "PATIENT" : "DOCTOR";
+
+  const res = await fetch(`/api/update-speaker/${transcriptId}`, {
+    method:  "POST",
+    headers: {"Content-Type": "application/json"},
+    body:    JSON.stringify({ speaker: next })
+  });
+
+  if (res.ok) {
+    if (next === "DOCTOR") {
+      badge.className = "badge bg-primary";
+      badge.innerHTML = '<i class="bi bi-person-badge me-1"></i>Doctor';
+    } else {
+      badge.className = "badge bg-success";
+      badge.innerHTML = '<i class="bi bi-person me-1"></i>Patient';
+    }
+  }
+}
+
+// ── Prescription management ────────────────────────────
+const RX_COLS = ["medicine_name","dosage","frequency","duration","instructions"];
+const RX_PH  = ["e.g. Paracetamol 500mg","e.g. 1 tablet","e.g. Twice daily",
+                 "e.g. 5 days","e.g. After meals"];
+const isApproved = {{ 'true' if consultation.status == 'approved' else 'false' }};
+
+async function loadPrescriptions(){
+  const res  = await fetch(`/api/prescriptions/{{ consultation.id }}`);
+  const data = await res.json();
+  const body = document.getElementById("rx-body");
+  body.innerHTML = "";
+  if(data.length === 0){
+    document.getElementById("rx-empty").classList.remove("d-none");
+    return;
+  }
+  document.getElementById("rx-empty").classList.add("d-none");
+  data.forEach(rx => appendRxRow(rx));
+}
+
+function appendRxRow(rx={}){
+  document.getElementById("rx-empty").classList.add("d-none");
+  const tr = document.createElement("tr");
+  tr.innerHTML = RX_COLS.map((col,i) => {
+    const val = rx[col] || "";
+    if(isApproved){
+      return `<td style="font-size:.88rem">${val || "—"}</td>`;
+    }
+    return `<td><input class="form-control form-control-sm rx-field"
+              data-col="${col}" value="${val}"
+              placeholder="${RX_PH[i]}"
+              style="font-size:.83rem;min-width:80px"/></td>`;
+  }).join("") + (isApproved ? "" :
+    `<td><button class="btn btn-sm btn-outline-danger"
+         onclick="this.closest('tr').remove();checkEmpty()">
+      <i class="bi bi-trash"></i></button></td>`);
+  document.getElementById("rx-body").appendChild(tr);
+}
+
+function addMedicineRow(){ appendRxRow({}); }
+
+function checkEmpty(){
+  const rows = document.querySelectorAll("#rx-body tr");
+  document.getElementById("rx-empty").classList.toggle("d-none", rows.length > 0);
+}
+
+async function savePrescriptions(){
+  const rows = document.querySelectorAll("#rx-body tr");
+  const medicines = [];
+  rows.forEach(tr => {
+    const obj = {};
+    tr.querySelectorAll(".rx-field").forEach(inp => {
+      obj[inp.dataset.col] = inp.value.trim();
+    });
+    if(obj.medicine_name) medicines.push(obj);
+  });
+  const res = await fetch(`/api/prescriptions/{{ consultation.id }}`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({medicines})
+  });
+  const data = await res.json();
+  if(data.status === "saved"){
+    const toast = new bootstrap.Toast(document.getElementById("save-toast"));
+    toast.show();
+    document.getElementById("save-toast").querySelector(".toast-body").innerHTML =
+      `<i class="bi bi-check-circle me-2"></i>Prescription saved (${data.count} medicines)`;
+  }
+}
+
+// Auto-fill from extracted entities
+async function prefillFromEntities(){
+  const res  = await fetch(`/api/entities/{{ consultation.id }}`);
+  if(!res.ok) return;
+  const data = await res.json();
+  const meds = data.filter(e => e.entity_type === "medications");
+  if(meds.length === 0) return;
+  const existing = await (await fetch(`/api/prescriptions/{{ consultation.id }}`)).json();
+  if(existing.length > 0) return; // don't overwrite
+  meds.forEach(m => appendRxRow({medicine_name: m.entity_value}));
+}
+
+// Add entities API endpoint reference
+loadPrescriptions();
+if(!isApproved) prefillFromEntities();
+// Auto-save every 60 seconds
+setInterval(saveNote, 60000);
+</script>
+{% endblock %}

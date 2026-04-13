@@ -1,0 +1,623 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .reg-wrap { max-width:1200px; margin:0 auto; }
+
+  .prog-track { display:flex; align-items:center; margin-bottom:28px; max-width:320px; margin-left:auto; margin-right:auto; }
+  .prog-step  { display:flex; flex-direction:column; align-items:center; flex:1; position:relative; }
+  .prog-step:not(:last-child)::after {
+    content:""; position:absolute; top:18px; left:50%;
+    width:100%; height:2px; background:#e5e7eb; z-index:0;
+  }
+  .prog-step.done::after { background:#1a56db; }
+  .prog-dot {
+    width:36px; height:36px; border-radius:50%; z-index:1;
+    display:flex; align-items:center; justify-content:center;
+    font-size:.85rem; font-weight:700;
+    border:2px solid #e5e7eb; background:#fff; color:#9ca3af; transition:all .25s;
+  }
+  .prog-step.active .prog-dot { background:#1a56db; border-color:#1a56db; color:#fff; box-shadow:0 0 0 4px rgba(26,86,219,.15); }
+  .prog-step.done   .prog-dot { background:#1a56db; border-color:#1a56db; color:#fff; }
+  .prog-label { font-size:.72rem; margin-top:6px; color:#9ca3af; font-weight:500; text-align:center; }
+  .prog-step.active .prog-label { color:#1a56db; font-weight:700; }
+  .prog-step.done   .prog-label { color:#1a56db; }
+
+  .step-panel { display:none; }
+  .step-panel.active { display:block; }
+
+  .rc {
+    background:#fff !important;
+    border-radius:14px !important;
+    box-shadow:0 1px 12px rgba(0,0,0,.08) !important;
+    border:1px solid #e5e7eb !important;
+    overflow:hidden;
+    margin-bottom:0;
+  }
+  .rc-hdr {
+    padding:14px 20px;
+    border-bottom:1px solid #f3f4f6;
+    background:#fff;
+  }
+  .rc-body { padding:20px 24px; background:#fff; }
+  .rc-footer {
+    padding:14px 20px; background:#f9fafb;
+    border-top:1px solid #f3f4f6;
+    display:flex; gap:10px;
+    justify-content:flex-end; align-items:center;
+  }
+
+  .sec-hdr {
+    display:flex; align-items:center; gap:8px;
+    padding:9px 12px; border-radius:8px;
+    margin-bottom:14px; font-size:.82rem; font-weight:700;
+  }
+
+  .fl { display:block; font-size:.8rem; font-weight:600; color:#374151; margin-bottom:5px; }
+  .req { color:#ef4444; margin-left:2px; }
+
+  .form-control, .form-select {
+    font-size:.88rem !important;
+    border-color:#e5e7eb !important;
+    border-radius:8px !important;
+    padding:8px 11px !important;
+    background:#fff !important;
+  }
+  .form-control:focus, .form-select:focus {
+    border-color:#1a56db !important;
+    box-shadow:0 0 0 3px rgba(26,86,219,.1) !important;
+  }
+  textarea.form-control { resize:none; }
+
+  .pill-group { display:flex; flex-wrap:wrap; gap:6px; }
+  .pill-group input[type=radio] { display:none; }
+  .pill-group label {
+    padding:5px 14px; border-radius:20px; font-size:.8rem;
+    border:1.5px solid #e5e7eb; color:#6b7280;
+    cursor:pointer; transition:all .2s; font-weight:500;
+  }
+  .pill-group input[type=radio]:checked + label {
+    background:#1a56db; border-color:#1a56db; color:#fff;
+  }
+
+  .ci {
+    display:flex; align-items:flex-start; gap:12px;
+    padding:13px 15px; border-radius:10px;
+    border:1.5px solid #e5e7eb; margin-bottom:10px;
+    transition:all .2s; cursor:pointer; background:#fff;
+  }
+  .ci:has(input:checked) { border-color:#1a56db; background:#eff6ff; }
+  .ci input { margin-top:2px; width:17px; height:17px; flex-shrink:0; accent-color:#1a56db; }
+  .ci-title { font-size:.85rem; font-weight:600; color:#1f2937; display:block; }
+  .ci-desc  { font-size:.8rem; color:#6b7280; line-height:1.5; margin-top:2px; }
+
+  .vg { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+</style>
+
+<div class="reg-wrap">
+
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h4 class="fw-bold mb-0">Patient Registration</h4>
+      <p class="text-muted mb-0" style="font-size:.83rem">
+        <i class="bi bi-building me-1 text-primary"></i>
+        Dr. {{ current_user.name }} &nbsp;·&nbsp;
+        <span id="hdr-date"></span>
+      </p>
+    </div>
+    <a href="{{ url_for('dashboard.dashboard') }}"
+       class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Dashboard
+    </a>
+  </div>
+
+  <form method="POST" action="{{ url_for('consultation.consent_submit') }}" id="reg-form">
+
+    <!-- STEP 1 — CONSENT -->
+    <div class="step-panel active" id="step1">
+      <div class="prog-track">
+        <div class="prog-step active">
+          <div class="prog-dot"><i class="bi bi-shield-check"></i></div>
+          <div class="prog-label">Consent</div>
+        </div>
+        <div class="prog-step">
+          <div class="prog-dot"><i class="bi bi-person-lines-fill"></i></div>
+          <div class="prog-label">Registration</div>
+        </div>
+      </div>
+
+      <!-- Two-column consent layout -->
+      <div class="row g-3">
+
+        <!-- Left: How it works -->
+        <div class="col-lg-5">
+          <div class="rc h-100">
+            <div class="rc-hdr d-flex align-items-center gap-3">
+              <div style="width:40px;height:40px;border-radius:10px;background:#eff6ff;
+                          display:flex;align-items:center;justify-content:center;
+                          font-size:1.1rem;color:#1a56db;flex-shrink:0">
+                <i class="bi bi-heart-pulse-fill"></i>
+              </div>
+              <div>
+                <div class="fw-bold" style="font-size:.92rem">About MediNote AI</div>
+                <div class="text-muted" style="font-size:.78rem">AI-powered clinical documentation</div>
+              </div>
+            </div>
+            <div class="rc-body">
+              {% for icon, color, bg, title, desc in [
+                ("bi-mic-fill",     "#1a56db","#eff6ff","Audio recording",    "The consultation is recorded via microphone or uploaded as an audio file."),
+                ("bi-soundwave",    "#0891b2","#ecfeff","AI transcription",    "WhisperX transcribes the conversation and labels Doctor and Patient."),
+                ("bi-search-heart", "#d97706","#fffbeb","Entity extraction",   "Symptoms, medications, diagnoses and follow-up are extracted automatically."),
+                ("bi-file-medical", "#059669","#ecfdf5","SOAP note generation","A structured clinical note is generated and presented for doctor review."),
+                ("bi-check-circle", "#7c3aed","#f5f3ff","Doctor approval",     "Doctor reviews, edits, approves and exports the final note as PDF.")
+              ] %}
+              <div class="d-flex gap-3 mb-3 {{ '' if not loop.last else '' }}">
+                <div style="width:34px;height:34px;border-radius:9px;flex-shrink:0;
+                            background:{{ bg }};display:flex;align-items:center;
+                            justify-content:center;font-size:.9rem;color:{{ color }}">
+                  <i class="bi {{ icon }}"></i>
+                </div>
+                <div>
+                  <div class="fw-semibold" style="font-size:.83rem;color:#1f2937">{{ title }}</div>
+                  <div class="text-muted" style="font-size:.78rem;line-height:1.5;margin-top:1px">{{ desc }}</div>
+                </div>
+              </div>
+              {% endfor %}
+
+              <div class="d-flex flex-wrap gap-2 mt-3 pt-3" style="border-top:1px solid #f3f4f6">
+                {% for icon, label in [
+                  ("bi-lock-fill","Encrypted storage"),
+                  ("bi-person-check-fill","Doctor-approved"),
+                  ("bi-shield-fill-check","HIPAA-aligned"),
+                  ("bi-clock-fill","Near real-time")
+                ] %}
+                <span style="background:#f3f4f6;color:#374151;font-size:.72rem;
+                             font-weight:500;padding:3px 10px;border-radius:8px;
+                             display:inline-flex;align-items:center;gap:4px">
+                  <i class="bi {{ icon }} text-primary" style="font-size:.72rem"></i>
+                  {{ label }}
+                </span>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Consent checkboxes -->
+        <div class="col-lg-7">
+          <div class="rc h-100 d-flex flex-column">
+            <div class="rc-hdr d-flex align-items-center gap-3">
+              <div style="width:40px;height:40px;border-radius:10px;background:#eff6ff;
+                          display:flex;align-items:center;justify-content:center;
+                          font-size:1.1rem;color:#1a56db;flex-shrink:0">
+                <i class="bi bi-shield-check"></i>
+              </div>
+              <div>
+                <div class="fw-bold" style="font-size:.92rem">Privacy & Data Consent</div>
+                <div class="text-muted" style="font-size:.78rem">Please read and agree before proceeding</div>
+              </div>
+            </div>
+            <div class="rc-body flex-grow-1">
+              <div class="p-3 rounded-3 mb-4"
+                   style="background:#f0f4ff;border-left:4px solid #1a56db">
+                <div class="fw-semibold mb-1" style="font-size:.83rem;color:#1a56db">
+                  <i class="bi bi-info-circle me-2"></i>Your rights & data protection
+                </div>
+                <p class="mb-0 text-muted" style="font-size:.79rem;line-height:1.6">
+                  Under applicable data protection regulations, you have the right to access,
+                  correct, and request deletion of your personal data. MediNote AI processes
+                  data solely for clinical documentation purposes.
+                </p>
+              </div>
+
+              <div class="fl mb-3">
+                <i class="bi bi-check2-square me-1 text-primary"></i>
+                Tick all four boxes to continue
+              </div>
+
+              {% for title, desc in [
+                ("Recording & AI processing",
+                 "I consent to this consultation being audio-recorded and processed by AI systems to generate clinical documentation."),
+                ("Data storage & access",
+                 "I understand my data will be stored securely and accessible only to authorised medical personnel at this institution."),
+                ("Doctor review & approval",
+                 "I understand all AI-generated notes will be reviewed, edited, and approved by the attending doctor before being finalised."),
+                ("Accuracy of information",
+                 "I confirm that the personal and medical information I provide is accurate to the best of my knowledge.")
+              ] %}
+              <div class="ci" onclick="toggleCI(this)">
+                <input type="checkbox" required onclick="event.stopPropagation()"/>
+                <div>
+                  <span class="ci-title">{{ title }}</span>
+                  <span class="ci-desc">{{ desc }}</span>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="rc-footer">
+              <span class="text-muted" style="font-size:.76rem">
+                <i class="bi bi-lock-fill me-1 text-primary"></i>
+                Your data is encrypted
+              </span>
+              <button type="button" class="btn btn-primary px-5 fw-semibold"
+                      onclick="doGoStep2()">
+                I Agree &amp; Continue
+                <i class="bi bi-arrow-right ms-2"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2 — REGISTRATION DETAILS -->
+    <div class="step-panel" id="step2">
+      <div class="prog-track">
+        <div class="prog-step done">
+          <div class="prog-dot"><i class="bi bi-check2"></i></div>
+          <div class="prog-label">Consent</div>
+        </div>
+        <div class="prog-step active">
+          <div class="prog-dot"><i class="bi bi-person-lines-fill"></i></div>
+          <div class="prog-label">Registration</div>
+        </div>
+      </div>
+
+      <!-- Pre-fill banner (shown when from appointment) -->
+      <div id="prefill-banner" class="d-none alert border-0 mb-3"
+           style="background:#eff6ff;border-left:4px solid #1a56db!important;
+                  border-left-style:solid!important">
+        <i class="bi bi-calendar-check me-2 text-primary"></i>
+        <strong>Pre-filled from appointment</strong> — review and complete remaining fields.
+      </div>
+
+      <div class="row g-3">
+
+        <!-- LEFT: Patient details + Medical history -->
+        <div class="col-lg-6">
+          <div class="rc d-flex flex-column" style="height:100%">
+            <div class="rc-hdr">
+              <div class="fw-bold" style="font-size:.92rem">
+                <i class="bi bi-person-circle me-2 text-primary"></i>Patient details
+              </div>
+            </div>
+            <div class="rc-body flex-grow-1">
+
+              <div class="sec-hdr" style="background:#eff6ff;color:#1a56db">
+                <i class="bi bi-person-vcard"></i>Personal information
+              </div>
+
+              <div class="mb-3">
+                <label class="fl">Full name <span class="req">*</span></label>
+                <input type="text" name="patient_name" id="pf-name"
+                       class="form-control" placeholder="e.g. Rajesh Kumar" required/>
+              </div>
+
+              <div class="row g-2 mb-3">
+                <div class="col-3">
+                  <label class="fl">Age <span class="req">*</span></label>
+                  <input type="number" name="age" class="form-control"
+                         placeholder="Yrs" min="0" max="120" required/>
+                </div>
+                <div class="col-5">
+                  <label class="fl">Gender <span class="req">*</span></label>
+                  <select name="gender" class="form-select" required>
+                    <option value="">Select</option>
+                    <option>Male</option><option>Female</option><option>Other</option>
+                  </select>
+                </div>
+                <div class="col-4">
+                  <label class="fl">Blood group</label>
+                  <select name="blood_group" class="form-select">
+                    <option value="">—</option>
+                    {% for bg in ["A+","A-","B+","B-","AB+","AB-","O+","O-"] %}
+                    <option>{{ bg }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+
+              <div class="row g-2 mb-3">
+                <div class="col-6">
+                  <label class="fl">Date of birth</label>
+                  <input type="date" name="dob" class="form-control"/>
+                </div>
+                <div class="col-6">
+                  <label class="fl">Phone</label>
+                  <input type="tel" name="phone" id="pf-phone"
+                         class="form-control" placeholder="+91 98765 43210"/>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="fl">
+                  Email
+                  <span style="font-weight:400;color:#9ca3af;font-size:.74rem">
+                    (report sent here)
+                  </span>
+                </label>
+                <div class="input-group">
+                  <span class="input-group-text bg-white border-end-0">
+                    <i class="bi bi-envelope text-muted" style="font-size:.85rem"></i>
+                  </span>
+                  <input type="email" name="patient_email"
+                         class="form-control border-start-0"
+                         placeholder="patient@email.com"/>
+                </div>
+              </div>
+
+              <div class="mb-4">
+                <label class="fl">Address</label>
+                <input type="text" name="address" class="form-control"
+                       placeholder="City, State"/>
+              </div>
+
+              <div class="sec-hdr" style="background:#fff8ed;color:#d97706">
+                <i class="bi bi-clipboard2-pulse"></i>Medical history
+              </div>
+
+              <div class="mb-3">
+                <label class="fl">Known allergies</label>
+                <input type="text" name="allergies" class="form-control"
+                       placeholder="e.g. Penicillin (blank if none)"/>
+              </div>
+              <div class="mb-3">
+                <label class="fl">Existing conditions</label>
+                <input type="text" name="conditions" class="form-control"
+                       placeholder="e.g. Diabetes, Hypertension"/>
+              </div>
+              <div class="mb-3">
+                <label class="fl">Current medications</label>
+                <input type="text" name="current_meds" class="form-control"
+                       placeholder="e.g. Metformin 500mg twice daily"/>
+              </div>
+              <div class="row g-2">
+                <div class="col-6">
+                  <label class="fl">Previous surgeries</label>
+                  <input type="text" name="surgeries" class="form-control"
+                         placeholder="e.g. Appendectomy 2018"/>
+                </div>
+                <div class="col-6">
+                  <label class="fl">Family history</label>
+                  <input type="text" name="family_history" class="form-control"
+                         placeholder="e.g. Father — T2D"/>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Consultation + Vitals -->
+        <div class="col-lg-6">
+          <div class="rc d-flex flex-column" style="height:100%">
+            <div class="rc-hdr">
+              <div class="fw-bold" style="font-size:.92rem">
+                <i class="bi bi-stethoscope me-2 text-success"></i>Consultation & vitals
+              </div>
+            </div>
+            <div class="rc-body flex-grow-1">
+
+              <div class="sec-hdr" style="background:#f0fdf4;color:#059669">
+                <i class="bi bi-stethoscope"></i>Consultation details
+              </div>
+
+              <div class="row g-2 mb-3">
+                <div class="col-6">
+                  <label class="fl">Attending doctor</label>
+                  <input type="text" name="doctor_name" class="form-control"
+                         value="{{ current_user.name }}" required/>
+                </div>
+                <div class="col-6">
+                  <label class="fl">Department</label>
+                  <select name="department" id="pf-dept" class="form-select">
+                    <option value="">Select</option>
+                    {% for d in ["General Medicine","Cardiology","Neurology",
+                      "Orthopaedics","Paediatrics","Gynaecology","Dermatology",
+                      "ENT","Ophthalmology","Psychiatry","Oncology",
+                      "Emergency Medicine","Other"] %}
+                    <option>{{ d }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="fl">Visit type</label>
+                <div class="pill-group">
+                  {% for vt in ["First visit","Follow-up","Emergency","Routine checkup"] %}
+                  <input type="radio" name="visit_type" id="vt{{ loop.index }}"
+                         value="{{ vt }}" {{ "checked" if loop.first }}>
+                  <label for="vt{{ loop.index }}">{{ vt }}</label>
+                  {% endfor %}
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="fl">Chief complaint <span class="req">*</span></label>
+                <textarea name="chief_complaint" id="pf-complaint"
+                          class="form-control" rows="3"
+                          placeholder="Main reason for today's visit" required></textarea>
+              </div>
+
+              <div class="row g-2 mb-4">
+                <div class="col-6">
+                  <label class="fl">Duration of symptoms</label>
+                  <input type="text" name="symptom_duration" class="form-control"
+                         placeholder="e.g. 3 days"/>
+                </div>
+                <div class="col-6">
+                  <label class="fl">
+                    Pain scale &nbsp;
+                    <span id="pain-badge" class="badge"
+                          style="background:#ecfdf5;color:#059669;font-size:.72rem">
+                      0 — None
+                    </span>
+                  </label>
+                  <input type="range" name="pain_scale" class="form-range mt-1"
+                         min="0" max="10" value="0"
+                         oninput="updatePain(this.value)"/>
+                  <div class="d-flex justify-content-between"
+                       style="font-size:.7rem;color:#9ca3af">
+                    <span>No pain</span><span>Severe</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="sec-hdr" style="background:#fdf4ff;color:#9333ea">
+                <i class="bi bi-heart-pulse"></i>Vitals
+                <span class="fw-normal text-muted ms-1" style="font-size:.74rem">(optional)</span>
+              </div>
+
+              <div class="vg">
+                {% for label, name, ph, unit in [
+                  ("Temperature","temperature","98.6","°F"),
+                  ("Blood pressure","blood_pressure","120/80","mmHg"),
+                  ("Pulse","pulse","72","bpm"),
+                  ("SpO₂","spo2","98","%"),
+                  ("Weight","weight","70","kg"),
+                  ("Height","height","170","cm")
+                ] %}
+                <div>
+                  <label class="fl" style="font-size:.76rem">
+                    {{ label }}
+                    <span style="color:#9ca3af;font-weight:400">({{ unit }})</span>
+                  </label>
+                  <input type="text" name="{{ name }}" class="form-control"
+                         placeholder="{{ ph }}" style="font-size:.84rem!important"/>
+                </div>
+                {% endfor %}
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Submit bar -->
+      <div class="d-flex justify-content-between align-items-center mt-3 p-3 rounded-3"
+           style="background:#fff;border:1px solid #e5e7eb">
+        <button type="button" class="btn btn-outline-secondary"
+                onclick="backToStep1()">
+          <i class="bi bi-arrow-left me-2"></i>Back to consent
+        </button>
+        <button type="submit" class="btn btn-primary px-5 fw-semibold">
+          <i class="bi bi-check-circle me-2"></i>Confirm & Proceed to Recording
+        </button>
+      </div>
+
+    </div>
+
+  </form>
+</div>
+
+<script>
+// Header date
+const hdrDate = document.getElementById("hdr-date");
+if(hdrDate) hdrDate.textContent = new Date().toLocaleDateString("en-IN",
+  {day:"2-digit",month:"short",year:"numeric"});
+
+// Pain scale
+const painLabels = ["None","Minimal","Mild","Mild","Moderate","Moderate",
+                    "Moderate","Severe","Severe","Very severe","Worst"];
+const painBgArr  = ["#ecfdf5","#ecfdf5","#ecfdf5","#fefce8","#fefce8",
+                    "#fefce8","#fff7ed","#fef2f2","#fef2f2","#fef2f2","#fef2f2"];
+const painFgArr  = ["#059669","#059669","#059669","#ca8a04","#ca8a04",
+                    "#ca8a04","#d97706","#dc2626","#dc2626","#dc2626","#dc2626"];
+function updatePain(v){
+  const b = document.getElementById("pain-badge");
+  const i = parseInt(v);
+  b.style.background = painBgArr[i];
+  b.style.color      = painFgArr[i];
+  b.textContent      = `${v} — ${painLabels[i]}`;
+}
+
+// Toggle consent checkbox
+function toggleCI(item){
+  const cb = item.querySelector("input[type=checkbox]");
+  cb.checked = !cb.checked;
+  item.style.borderColor = cb.checked ? "#1a56db" : "#e5e7eb";
+  item.style.background  = cb.checked ? "#eff6ff" : "#fff";
+}
+
+// Load pre-fill data from server
+async function loadPrefill(){
+  try {
+    const res  = await fetch("/api/prefill-data");
+    const data = await res.json();
+    if(!data.from_appointment) return;
+
+    // Show banner
+    document.getElementById("prefill-banner").classList.remove("d-none");
+
+    // Fill fields
+    const set = (id, val) => {
+      if(!val) return;
+      const el = document.getElementById(id);
+      if(el) el.value = val;
+    };
+
+    set("pf-name",      data.patient_name);
+    set("pf-phone",     data.phone);
+    set("pf-complaint", data.chief_complaint);
+
+    // Department select
+    if(data.department){
+      const dept = document.getElementById("pf-dept");
+      if(dept){
+        for(let o of dept.options){
+          if(o.value === data.department || o.text === data.department){
+            o.selected = true; break;
+          }
+        }
+      }
+    }
+
+    // Visit type radio
+    if(data.visit_type){
+      document.querySelectorAll("input[name='visit_type']").forEach(r => {
+        if(r.value === data.visit_type) r.checked = true;
+      });
+    }
+
+    console.log("Pre-fill applied:", data.patient_name, data.department);
+  } catch(e){
+    console.log("Pre-fill skipped:", e);
+  }
+}
+
+// Step navigation
+function doGoStep2(){
+  const boxes = document.querySelectorAll("#step1 input[type=checkbox]");
+  let all = true;
+  boxes.forEach(b => {
+    const item = b.closest(".ci");
+    if(!b.checked){
+      all = false;
+      item.style.borderColor = "#ef4444";
+      item.style.background  = "#fef2f2";
+    }
+  });
+  if(!all) return;
+
+  document.getElementById("step1").classList.remove("active");
+  document.getElementById("step2").classList.add("active");
+  window.scrollTo({top:0,behavior:"smooth"});
+
+  // Load pre-fill AFTER step 2 is visible
+  loadPrefill();
+}
+
+function backToStep1(){
+  document.getElementById("step2").classList.remove("active");
+  document.getElementById("step1").classList.add("active");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+// If arriving directly at step2 (e.g. from appointment shortcut),
+// auto-load prefill after a short delay
+window.addEventListener("load", () => {
+  setTimeout(loadPrefill, 300);
+});
+</script>
+{% endblock %}

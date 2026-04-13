@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="fw-bold mb-0">
+      {% set h = now().hour %}
+      {% if h < 12 %}Good morning{% elif h < 17 %}Good afternoon{% else %}Good evening{% endif %},
+      {{ current_user.name }}
+    </h4>
+    <p class="text-muted mb-0" style="font-size:.88rem">
+      <i class="bi bi-calendar3 me-1"></i>
+      {{ now().strftime("%A, %d %B %Y") }}
+      &nbsp;·&nbsp;
+      <span style="color:#1a56db;font-weight:600">
+        {{ today_appts|length }} appointment{{ "s" if today_appts|length != 1 }} today
+      </span>
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('patients.appointments') }}"
+       class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-calendar-plus me-1"></i>Book appointment
+    </a>
+    <a href="{{ url_for('consultation.consent') }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-circle me-1"></i>New consultation
+    </a>
+  </div>
+</div>
+
+<!-- Quick search -->
+<div class="card mb-4 p-0">
+  <div class="d-flex align-items-center px-3 py-2 gap-3">
+    <i class="bi bi-search text-muted"></i>
+    <input type="text" id="quick-search"
+           class="form-control border-0 shadow-none p-0"
+           placeholder="Quick search — patient name, ID..."
+           style="font-size:.9rem"
+           oninput="quickSearch(this.value)"/>
+    <span style="font-size:.78rem;color:#9ca3af;white-space:nowrap">
+      Press Enter to search
+    </span>
+  </div>
+  <div id="search-results" class="d-none border-top">
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+  {% for label, value, color, bg, icon in [
+    ("Total consultations", total,        "#1a56db","#eff6ff","bi-folder2-open"),
+    ("Pending review",      needs_review, "#d97706","#fffbeb","bi-hourglass-split"),
+    ("No prescription",     no_rx_count,  "#dc2626","#fef2f2","bi-capsule"),
+    ("Approved",            approved,     "#059669","#ecfdf5","bi-check-circle")
+  ] %}
+  <div class="col-6 col-md-3">
+    <div class="stat-card d-flex justify-content-between align-items-center"
+         style="cursor:pointer"
+         onclick="window.location='{{ url_for('dashboard.all_consultations') }}'">
+      <div>
+        <div class="stat-number" style="color:{{ color }}">{{ value }}</div>
+        <div class="stat-label">{{ label }}</div>
+      </div>
+      <div class="stat-icon" style="background:{{ bg }};color:{{ color }}">
+        <i class="bi {{ icon }}"></i>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3">
+
+  <!-- LEFT: Today's appointments -->
+  <div class="col-md-7">
+    <div class="card h-100">
+      <div class="card-body p-0">
+        <div class="d-flex justify-content-between align-items-center
+                    px-3 py-3 border-bottom">
+          <h6 class="fw-bold mb-0">
+            <i class="bi bi-calendar-day me-2 text-primary"></i>
+            Today's appointments
+            <span class="badge ms-2"
+                  style="background:#eff6ff;color:#1a56db;font-size:.72rem">
+              {{ today_appts|length }}
+            </span>
+          </h6>
+          <a href="{{ url_for('patients.appointments') }}"
+             class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-plus me-1"></i>Add
+          </a>
+        </div>
+
+        {% if today_appts %}
+        {% for a in today_appts %}
+        <div class="d-flex align-items-center gap-3 px-3 py-2 border-bottom"
+             style="{% if loop.last %}border-bottom:none!important{% endif %}">
+
+          <!-- Time -->
+          <div style="min-width:52px;background:#f3f4f6;border-radius:8px;
+                      padding:4px 8px;text-align:center">
+            <div style="font-size:.78rem;font-weight:700;color:#1a56db">
+              {{ a.appointment_time or "—" }}
+            </div>
+          </div>
+
+          <!-- Avatar -->
+          <div style="width:34px;height:34px;border-radius:50%;background:#eff6ff;
+                      display:flex;align-items:center;justify-content:center;
+                      font-weight:700;color:#1a56db;font-size:.85rem;flex-shrink:0">
+            {{ a.patient_name[0].upper() }}
+          </div>
+
+          <!-- Info -->
+          <div class="flex-grow-1">
+            <div class="fw-semibold" style="font-size:.9rem;color:#1f2937">
+              {{ a.patient_name }}
+            </div>
+            <div style="font-size:.76rem;color:#9ca3af">
+              {{ a.department or "General" }}
+              &nbsp;·&nbsp;{{ a.visit_type or "First visit" }}
+            </div>
+          </div>
+
+          <!-- Status -->
+          <form method="POST" action="{{ url_for('patients.appointments') }}">
+            <input type="hidden" name="action" value="update_status"/>
+            <input type="hidden" name="appt_id" value="{{ a.id }}"/>
+            <select name="status" class="form-select form-select-sm"
+                    onchange="this.form.submit()"
+                    style="font-size:.78rem;border-radius:20px;padding:2px 8px;
+                           min-width:110px;
+                           {% if a.status == 'checked_in' %}background:#ecfdf5;color:#059669;
+                           {% elif a.status == 'in_consultation' %}background:#eff6ff;color:#1a56db;
+                           {% elif a.status == 'waiting' %}background:#fffbeb;color:#d97706;
+                           {% elif a.status == 'completed' %}background:#f3f4f6;color:#6b7280;
+                           {% else %}background:#f3f4f6;color:#6b7280;{% endif %}">
+              {% for opt, label in [
+                ("scheduled","Scheduled"),
+                ("waiting","Waiting"),
+                ("checked_in","Checked in"),
+                ("in_consultation","In consultation"),
+                ("completed","Completed"),
+                ("no_show","No show")
+              ] %}
+              <option value="{{ opt }}" {{ "selected" if a.status == opt }}>
+                {{ label }}
+              </option>
+              {% endfor %}
+            </select>
+          </form>
+
+          <!-- Start consultation -->
+          <!-- Start consultation -->
+          <a href="{{ url_for('patients.start_from_appointment', appt_id=a.id) }}"
+             class="btn btn-sm btn-primary"
+             title="Start consultation for {{ a.patient_name }}"
+             style="white-space:nowrap">
+            <i class="bi bi-play-fill"></i>
+          </a>
+        </div>
+        {% endfor %}
+
+        {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-calendar-x" style="font-size:2.5rem;opacity:.3"></i>
+          <p class="mt-2 mb-2" style="font-size:.88rem">
+            No appointments scheduled for today
+          </p>
+          <a href="{{ url_for('patients.appointments') }}"
+             class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Book appointment
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT column -->
+  <div class="col-md-5 d-flex flex-column gap-3">
+
+    <!-- Action needed -->
+    <div class="card">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">
+          <i class="bi bi-lightning-charge me-2 text-warning"></i>
+          Action needed
+        </h6>
+
+        {% if needs_review == 0 and no_rx_count == 0 and pdfs_ready == 0 %}
+        <div class="text-center text-muted py-2" style="font-size:.85rem">
+          <i class="bi bi-check-circle-fill text-success"
+             style="font-size:1.5rem"></i>
+          <p class="mt-2 mb-0">All caught up!</p>
+        </div>
+        {% endif %}
+
+        {% if needs_review > 0 %}
+        <a href="{{ url_for('dashboard.all_consultations') }}"
+           class="text-decoration-none">
+          <div class="d-flex align-items-center gap-3 p-2 rounded-3 mb-2"
+               style="background:#fffbeb;border:1px solid #fde68a">
+            <div style="width:8px;height:8px;border-radius:50%;
+                        background:#d97706;flex-shrink:0"></div>
+            <div class="flex-grow-1" style="font-size:.85rem;color:#374151">
+              <span class="fw-semibold">{{ needs_review }}</span>
+              note{{ "s" if needs_review != 1 }} waiting for your approval
+            </div>
+            <span style="font-size:.75rem;font-weight:600;color:#d97706">
+              Review <i class="bi bi-arrow-right ms-1"></i>
+            </span>
+          </div>
+        </a>
+        {% endif %}
+
+        {% if no_rx_count > 0 %}
+        <a href="{{ url_for('patients.prescriptions') }}"
+           class="text-decoration-none">
+          <div class="d-flex align-items-center gap-3 p-2 rounded-3 mb-2"
+               style="background:#fef2f2;border:1px solid #fca5a5">
+            <div style="width:8px;height:8px;border-radius:50%;
+                        background:#dc2626;flex-shrink:0"></div>
+            <div class="flex-grow-1" style="font-size:.85rem;color:#374151">
+              <span class="fw-semibold">{{ no_rx_count }}</span>
+              consultation{{ "s" if no_rx_count != 1 }} have no prescription
+            </div>
+            <span style="font-size:.75rem;font-weight:600;color:#dc2626">
+              Write Rx <i class="bi bi-arrow-right ms-1"></i>
+            </span>
+          </div>
+        </a>
+        {% endif %}
+
+        {% if pdfs_ready > 0 %}
+        <a href="{{ url_for('patients.qr_dispenser') }}"
+           class="text-decoration-none">
+          <div class="d-flex align-items-center gap-3 p-2 rounded-3"
+               style="background:#ecfdf5;border:1px solid #6ee7b7">
+            <div style="width:8px;height:8px;border-radius:50%;
+                        background:#059669;flex-shrink:0"></div>
+            <div class="flex-grow-1" style="font-size:.85rem;color:#374151">
+              <span class="fw-semibold">{{ pdfs_ready }}</span>
+              PDF{{ "s" if pdfs_ready != 1 }} ready to share with patients
+            </div>
+            <span style="font-size:.75rem;font-weight:600;color:#059669">
+              QR <i class="bi bi-arrow-right ms-1"></i>
+            </span>
+          </div>
+        </a>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <!-- This week stats -->
+    <div class="card">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">
+          <i class="bi bi-bar-chart me-2 text-primary"></i>
+          This week
+        </h6>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          {% for label, value, color in [
+            ("Consultations", week_consults, "#1a56db"),
+            ("Approved",      week_approved, "#059669"),
+            ("Medicines Rx",  week_rxs,      "#d97706"),
+            ("PDFs sent",     week_pdfs,     "#7c3aed")
+          ] %}
+          <div style="background:#f9fafb;border-radius:10px;
+                      padding:10px;text-align:center">
+            <div style="font-size:1.4rem;font-weight:700;color:{{ color }}">
+              {{ value }}
+            </div>
+            <div style="font-size:.75rem;color:#9ca3af">{{ label }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Top symptoms -->
+    {% if top_symptoms %}
+    <div class="card">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">
+          <i class="bi bi-thermometer-half me-2 text-danger"></i>
+          Top symptoms this week
+        </h6>
+        {% for s, cnt in top_symptoms %}
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <div style="width:6px;height:6px;border-radius:50%;
+                      background:#ef4444;flex-shrink:0"></div>
+          <span style="font-size:.83rem;color:#374151;flex-grow:1">
+            {{ s | capitalize }}
+          </span>
+          <span style="background:#fef2f2;color:#dc2626;font-size:.72rem;
+                       font-weight:600;padding:2px 8px;border-radius:10px">
+            {{ cnt }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<script>
+// Quick search
+const allPatients = {{ (today_appts | map(attribute='patient_name') | list | tojson) }};
+
+async function quickSearch(q) {
+  const box = document.getElementById("search-results");
+  if (!q || q.length < 2) { box.classList.add("d-none"); return; }
+
+  const res  = await fetch(`/patients?q=${encodeURIComponent(q)}`);
+  // Just redirect to patient list with query
+  box.innerHTML = `
+    <div class="px-3 py-2 d-flex align-items-center gap-2"
+         style="cursor:pointer;font-size:.88rem"
+         onclick="window.location='/patients?q=${encodeURIComponent(q)}'">
+      <i class="bi bi-search text-muted"></i>
+      Search for "<strong>${q}</strong>" in patient records
+      <i class="bi bi-arrow-right ms-auto text-muted"></i>
+    </div>`;
+  box.classList.remove("d-none");
+}
+
+document.getElementById("quick-search").addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    const q = e.target.value.trim();
+    if (q) window.location = `/patients?q=${encodeURIComponent(q)}`;
+  }
+});
+</script>
+{% endblock %}

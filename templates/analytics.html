@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="fw-bold mb-0">Analytics</h4>
+    <p class="text-muted mb-0" style="font-size:.88rem">
+      Clinical insights · Updated live
+    </p>
+  </div>
+  <a href="{{ url_for('consultation.export_excel') }}"
+     class="btn btn-outline-success btn-sm">
+    <i class="bi bi-file-earmark-excel me-1"></i>Export report
+  </a>
+</div>
+
+<!-- Stat row -->
+<div class="row g-3 mb-4">
+  {% for label, value, color, bg, icon in [
+    ("Total consultations", total,          "#1a56db","#eff6ff","bi-folder2-open"),
+    ("Approved",            approved,       "#059669","#ecfdf5","bi-check-circle"),
+    ("This month",          this_month,     "#d97706","#fffbeb","bi-calendar-check"),
+    ("Pending review",      total-approved, "#dc2626","#fef2f2","bi-hourglass-split")
+  ] %}
+  <div class="col-6 col-md-3">
+    <div class="stat-card d-flex justify-content-between align-items-center">
+      <div>
+        <div class="stat-number" style="color:{{ color }}">{{ value }}</div>
+        <div class="stat-label">{{ label }}</div>
+      </div>
+      <div class="stat-icon" style="background:{{ bg }};color:{{ color }}">
+        <i class="bi {{ icon }}"></i>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Row 1: Monthly bar (wide) + Status doughnut (narrow) -->
+<div class="row g-3 mb-3">
+  <div class="col-md-8">
+    <div class="card h-100">
+      <div class="card-body pb-2">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="fw-bold mb-0">
+            <i class="bi bi-bar-chart-line me-2 text-primary"></i>
+            Monthly consultation volume
+          </h6>
+          <span class="badge" style="background:#eff6ff;color:#1a56db;font-size:.75rem">
+            Last 6 months
+          </span>
+        </div>
+        <canvas id="monthlyChart" height="110"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body pb-2">
+        <h6 class="fw-bold mb-3">
+          <i class="bi bi-pie-chart me-2 text-warning"></i>
+          Status breakdown
+        </h6>
+        <div style="max-height:160px;display:flex;align-items:center;justify-content:center">
+          <canvas id="statusChart" height="160"></canvas>
+        </div>
+        <!-- Legend -->
+        <div class="mt-2">
+          {% set colors = ["#1a56db","#d97706","#0891b2","#059669","#dc2626","#7c3aed"] %}
+          {% for s, cnt in status_data %}
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <div class="d-flex align-items-center gap-2">
+              <div style="width:10px;height:10px;border-radius:2px;
+                          background:{{ colors[loop.index0 % colors|length] }}"></div>
+              <span style="font-size:.78rem;color:#374151">{{ s | capitalize }}</span>
+            </div>
+            <span class="fw-semibold" style="font-size:.78rem;color:#6b7280">{{ cnt }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 2: Symptoms + Department -->
+<div class="row g-3 mb-3">
+
+  <!-- Top symptoms horizontal bar -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">
+          <i class="bi bi-thermometer-half me-2 text-danger"></i>
+          Top reported symptoms
+        </h6>
+        {% if symptom_data %}
+        {% for s, cnt in symptom_data %}
+        <div class="mb-2">
+          <div class="d-flex justify-content-between mb-1">
+            <span style="font-size:.82rem;color:#374151">{{ s | capitalize }}</span>
+            <span style="font-size:.78rem;color:#9ca3af">{{ cnt }}</span>
+          </div>
+          <div style="height:6px;background:#f3f4f6;border-radius:10px;overflow:hidden">
+            <div style="height:100%;border-radius:10px;
+                        background:linear-gradient(90deg,#ef4444,#f97316);
+                        width:{{ (cnt / symptom_data[0][1] * 100)|int }}%">
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center text-muted py-4" style="font-size:.88rem">
+          <i class="bi bi-thermometer" style="font-size:2rem;opacity:.3"></i>
+          <p class="mt-2 mb-0">No symptom data yet</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Department + Doctor -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">
+          <i class="bi bi-building me-2 text-success"></i>
+          By department
+        </h6>
+        {% if dept_data %}
+        {% for dept, cnt in dept_data %}
+        <div class="mb-2">
+          <div class="d-flex justify-content-between mb-1">
+            <span style="font-size:.82rem;color:#374151">
+              {{ dept or "General Medicine" }}
+            </span>
+            <span style="font-size:.78rem;color:#9ca3af">{{ cnt }}</span>
+          </div>
+          <div style="height:6px;background:#f3f4f6;border-radius:10px;overflow:hidden">
+            <div style="height:100%;border-radius:10px;background:#059669;
+                        width:{{ (cnt / dept_data[0][1] * 100)|int }}%">
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center text-muted py-4" style="font-size:.88rem">
+          <i class="bi bi-building" style="font-size:2rem;opacity:.3"></i>
+          <p class="mt-2 mb-0">No department data yet</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Row 3: Doctor leaderboard -->
+{% if doctor_data %}
+<div class="card">
+  <div class="card-body">
+    <h6 class="fw-bold mb-3">
+      <i class="bi bi-trophy me-2 text-warning"></i>
+      Doctor activity
+    </h6>
+    <div class="row g-2">
+      {% for doc, cnt in doctor_data %}
+      <div class="col-md-4 col-6">
+        <div class="d-flex align-items-center gap-3 p-3 rounded-3"
+             style="background:#f9fafb;border:1px solid #f3f4f6">
+          <div style="width:38px;height:38px;border-radius:50%;
+                      background:linear-gradient(135deg,#1a56db,#1e3a8a);
+                      display:flex;align-items:center;justify-content:center;
+                      font-weight:700;color:#fff;font-size:.9rem;flex-shrink:0">
+            {{ doc[0].upper() if doc else "?" }}
+          </div>
+          <div class="flex-grow-1">
+            <div class="fw-semibold" style="font-size:.88rem">{{ doc }}</div>
+            <div style="font-size:.76rem;color:#6b7280">
+              {{ cnt }} consultation{{ "s" if cnt != 1 }}
+            </div>
+          </div>
+          {% if loop.index == 1 %}
+          <i class="bi bi-trophy-fill text-warning"></i>
+          {% elif loop.index == 2 %}
+          <i class="bi bi-award-fill" style="color:#94a3b8"></i>
+          {% elif loop.index == 3 %}
+          <i class="bi bi-award-fill" style="color:#d97706"></i>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.font.family = "'Segoe UI', sans-serif";
+Chart.defaults.font.size   = 11;
+
+new Chart(document.getElementById("monthlyChart"), {
+  type: "bar",
+  data: {
+    labels: {{ monthly | map(attribute='month') | list | tojson }},
+    datasets:[{
+      label:"Consultations",
+      data: {{ monthly | map(attribute='count') | list | tojson }},
+      backgroundColor:"#1a56dbcc",
+      hoverBackgroundColor:"#1a56db",
+      borderRadius:6, borderSkipped:false
+    }]
+  },
+  options:{
+    responsive:true,
+    plugins:{ legend:{display:false}, tooltip:{callbacks:{
+      label: ctx => ` ${ctx.raw} consultation${ctx.raw !== 1 ? 's' : ''}`
+    }}},
+    scales:{
+      y:{ beginAtZero:true, ticks:{stepSize:1}, grid:{color:"#f3f4f6"} },
+      x:{ grid:{display:false} }
+    }
+  }
+});
+
+new Chart(document.getElementById("statusChart"), {
+  type:"doughnut",
+  data:{
+    labels: {{ status_data | map(attribute=0) | list | tojson }},
+    datasets:[{
+      data:  {{ status_data | map(attribute=1) | list | tojson }},
+      backgroundColor:["#1a56db","#d97706","#0891b2","#059669","#dc2626","#7c3aed"],
+      borderWidth:3, borderColor:"#fff", hoverOffset:4
+    }]
+  },
+  options:{
+    responsive:true, cutout:"70%",
+    plugins:{ legend:{display:false} }
+  }
+});
+</script>
+{% endblock %}

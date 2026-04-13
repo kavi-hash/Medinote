@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="fw-bold mb-0">Appointments</h4>
+    <p class="text-muted mb-0" style="font-size:.88rem">
+      Schedule and manage patient appointments
+    </p>
+  </div>
+</div>
+
+<div class="row g-3">
+
+  <!-- Book new appointment form -->
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header bg-white py-3 px-4">
+        <div class="fw-bold" style="font-size:.92rem">
+          <i class="bi bi-calendar-plus me-2 text-primary"></i>
+          Book appointment
+        </div>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST">
+          <input type="hidden" name="action" value="add"/>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold" style="font-size:.83rem">
+              Patient name <span class="text-danger">*</span>
+            </label>
+            <input type="text" name="patient_name" class="form-control"
+                   placeholder="Full name" required style="font-size:.9rem"/>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold" style="font-size:.83rem">
+                Date <span class="text-danger">*</span>
+              </label>
+              <input type="date" name="appointment_date" class="form-control"
+                     value="{{ today }}" required style="font-size:.9rem"/>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold" style="font-size:.83rem">
+                Time
+              </label>
+              <input type="time" name="appointment_time" class="form-control"
+                     style="font-size:.9rem"/>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold" style="font-size:.83rem">
+              Department
+            </label>
+            <select name="department" class="form-select"
+                    style="font-size:.9rem">
+              <option value="">General Medicine</option>
+              {% for d in ["Cardiology","Neurology","Orthopaedics",
+                "Paediatrics","Gynaecology","Dermatology","ENT",
+                "Ophthalmology","Psychiatry","Emergency Medicine"] %}
+              <option>{{ d }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold" style="font-size:.83rem">
+              Visit type
+            </label>
+            <div class="d-flex flex-wrap gap-2">
+              {% for vt in ["First visit","Follow-up","Emergency","Routine"] %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio"
+                       name="visit_type" value="{{ vt }}"
+                       id="vt{{ loop.index }}"
+                       {{ "checked" if loop.first }}/>
+                <label class="form-check-label" for="vt{{ loop.index }}"
+                       style="font-size:.82rem">{{ vt }}</label>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold" style="font-size:.83rem">
+              Phone
+            </label>
+            <input type="tel" name="phone" class="form-control"
+                   placeholder="+91 98765 43210" style="font-size:.9rem"/>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold" style="font-size:.83rem">
+              Notes
+            </label>
+            <textarea name="notes" class="form-control" rows="2"
+                      placeholder="Reason for visit, special requirements..."
+                      style="font-size:.9rem;resize:none"></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-calendar-check me-2"></i>Book appointment
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upcoming appointments -->
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="px-3 py-3 border-bottom d-flex align-items-center gap-2">
+          <h6 class="fw-bold mb-0">
+            <i class="bi bi-calendar-week me-2 text-primary"></i>
+            Upcoming appointments
+          </h6>
+          <span class="badge"
+                style="background:#eff6ff;color:#1a56db;font-size:.72rem">
+            {{ upcoming|length }}
+          </span>
+        </div>
+
+        {% if upcoming %}
+        {% set current_date = namespace(d=None) %}
+        {% for a in upcoming %}
+
+        {% if a.appointment_date != current_date.d %}
+        {% set current_date.d = a.appointment_date %}
+        <div class="px-3 py-2"
+             style="background:#f9fafb;border-bottom:1px solid #f3f4f6">
+          <span class="fw-bold" style="font-size:.8rem;color:#374151">
+            {% if a.appointment_date == today %}
+            <span class="text-primary">Today</span>
+            {% elif a.appointment_date == today + (today - today) %}
+            Tomorrow
+            {% else %}
+            {{ a.appointment_date.strftime("%A, %d %B %Y") }}
+            {% endif %}
+          </span>
+        </div>
+        {% endif %}
+
+        <div class="d-flex align-items-center gap-3 px-3 py-2 border-bottom"
+             style="{% if loop.last %}border-bottom:none!important{% endif %}">
+
+          <div style="min-width:52px;text-align:center;background:#f3f4f6;
+                      border-radius:8px;padding:4px 6px">
+            <div style="font-size:.78rem;font-weight:700;color:#1a56db">
+              {{ a.appointment_time or "—" }}
+            </div>
+          </div>
+
+          <div style="width:34px;height:34px;border-radius:50%;background:#eff6ff;
+                      display:flex;align-items:center;justify-content:center;
+                      font-weight:700;color:#1a56db;font-size:.85rem;flex-shrink:0">
+            {{ a.patient_name[0].upper() }}
+          </div>
+
+          <div class="flex-grow-1">
+            <div class="fw-semibold" style="font-size:.9rem;color:#1f2937">
+              {{ a.patient_name }}
+            </div>
+            <div style="font-size:.76rem;color:#9ca3af">
+              {{ a.department or "General" }}
+              &nbsp;·&nbsp;{{ a.visit_type }}
+              {% if a.phone %}
+              &nbsp;·&nbsp;<i class="bi bi-telephone me-1"></i>{{ a.phone }}
+              {% endif %}
+            </div>
+            {% if a.notes %}
+            <div style="font-size:.75rem;color:#6b7280;margin-top:2px">
+              <i class="bi bi-sticky me-1"></i>{{ a.notes }}
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Status badge -->
+          {% set status_styles = {
+            "scheduled":       ("bg-secondary","Scheduled"),
+            "waiting":         ("","Waiting"),
+            "checked_in":      ("bg-success","Checked in"),
+            "in_consultation": ("","In consult"),
+            "completed":       ("bg-success","Completed"),
+            "no_show":         ("bg-danger","No show")
+          } %}
+          {% set ss = status_styles.get(a.status, ("bg-secondary",a.status)) %}
+          <span class="badge {{ ss[0] }}"
+                style="{% if a.status == 'waiting' %}background:#fffbeb;color:#d97706{% elif a.status == 'in_consultation' %}background:#eff6ff;color:#1a56db{% endif %}">
+            {{ ss[1] }}
+          </span>
+
+          <!-- Actions -->
+          <div class="d-flex gap-1">
+            <a href="{{ url_for('patients.start_from_appointment', appt_id=a.id) }}"
+               class="btn btn-sm btn-primary" title="Start consultation">
+              <i class="bi bi-play-fill"></i>
+            </a>
+            <form method="POST" class="d-inline"
+                  onsubmit="return confirm('Remove this appointment?')">
+              <input type="hidden" name="action" value="delete"/>
+              <input type="hidden" name="appt_id" value="{{ a.id }}"/>
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-calendar-x" style="font-size:2.5rem;opacity:.3"></i>
+          <p class="mt-2 mb-0" style="font-size:.88rem">No upcoming appointments</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

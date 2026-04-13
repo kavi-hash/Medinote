@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="text-center py-5">
+  <i class="bi bi-bug text-danger" style="font-size:4rem"></i>
+  <h2 class="fw-bold mt-3">Something went wrong</h2>
+  <p class="text-muted">An internal error occurred. Please try again.</p>
+  <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-primary">
+    <i class="bi bi-house me-2"></i>Back to dashboard
+  </a>
+</div>
+{% endblock %}

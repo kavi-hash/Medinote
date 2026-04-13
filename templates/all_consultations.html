@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="fw-bold mb-0">All consultations</h4>
+    <p class="text-muted mb-0" style="font-size:.88rem">
+      Complete consultation records
+    </p>
+  </div>
+  <a href="{{ url_for('consultation.consent') }}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-circle me-1"></i>New
+  </a>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="d-flex justify-content-between align-items-center p-3 border-bottom gap-3">
+      <h6 class="fw-bold mb-0 text-nowrap">
+        <i class="bi bi-folder2-open me-2 text-primary"></i>Records
+      </h6>
+      <div class="input-group" style="max-width:300px">
+        <span class="input-group-text bg-white border-end-0">
+          <i class="bi bi-search text-muted" style="font-size:.85rem"></i>
+        </span>
+        <input type="text" id="search-input"
+               class="form-control border-start-0 ps-0"
+               placeholder="Search patient or doctor..."
+               style="font-size:.88rem"
+               oninput="filterTable(this.value)"/>
+        <button class="btn btn-outline-secondary border"
+                onclick="clearSearch()" style="font-size:.82rem">
+          <i class="bi bi-x"></i>
+        </button>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-light text-dark text-nowrap" id="result-count">
+          {{ consultations|length }} total
+        </span>
+        <a href="{{ url_for('consultation.export_excel') }}"
+           class="btn btn-sm btn-outline-success text-nowrap">
+          <i class="bi bi-file-earmark-excel me-1"></i>Excel
+        </a>
+      </div>
+    </div>
+
+    {% if consultations %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th class="ps-3">#</th>
+            <th>Patient</th>
+            <th>Doctor</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th class="pe-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in consultations %}
+          <tr>
+            <td class="ps-3 text-muted fw-bold">MN-{{ '%04d' % c.id }}</td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <div style="width:32px;height:32px;border-radius:50%;
+                            background:#eff6ff;color:#1a56db;
+                            display:flex;align-items:center;justify-content:center;
+                            font-size:.8rem;font-weight:700">
+                  {{ c.patient_name[0].upper() }}
+                </div>
+                <span class="fw-semibold">{{ c.patient_name }}</span>
+              </div>
+            </td>
+            <td class="text-muted">{{ c.doctor_name }}</td>
+            <td class="text-muted" style="font-size:.85rem">
+              {{ c.created_at.strftime("%d %b %Y") }}<br>
+              <small>{{ c.created_at.strftime("%H:%M") }}</small>
+            </td>
+            <td>
+              {% if c.status == "uploaded" %}
+                <span class="badge rounded-pill bg-secondary">Uploaded</span>
+              {% elif c.status == "processing" %}
+                <span class="badge rounded-pill bg-warning text-dark">Processing</span>
+              {% elif c.status == "transcribed" %}
+                <span class="badge rounded-pill bg-info text-dark">Transcribed</span>
+              {% elif c.status == "ready" %}
+                <span class="badge rounded-pill"
+                      style="background:#0891b2;color:#fff">Ready</span>
+              {% elif c.status == "approved" %}
+                <span class="badge rounded-pill bg-success">Approved</span>
+              {% elif c.status == "error" %}
+                <span class="badge rounded-pill bg-danger">Error</span>
+              {% endif %}
+            </td>
+            <td class="pe-3">
+              <div class="d-flex gap-1">
+                <a href="{{ url_for('consultation.review', id=c.id) }}"
+                   class="btn btn-sm btn-outline-primary">
+                  <i class="bi bi-eye me-1"></i>Review
+                </a>
+                {% if c.status == "approved" %}
+                <a href="{{ url_for('consultation.export_pdf', id=c.id) }}"
+                   class="btn btn-sm btn-outline-success">
+                  <i class="bi bi-file-pdf"></i>
+                </a>
+                {% endif %}
+                <form method="POST"
+                      action="{{ url_for('consultation.delete_consultation', id=c.id) }}"
+                      class="d-inline"
+                      onsubmit="return confirm('Delete this consultation?')">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-inbox" style="font-size:3rem;opacity:.3"></i>
+      <p class="mt-3">No consultations yet</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function filterTable(q) {
+  const rows  = document.querySelectorAll("tbody tr");
+  let   shown = 0;
+  rows.forEach(row => {
+    const show = !q || row.textContent.toLowerCase().includes(q.toLowerCase());
+    row.style.display = show ? "" : "none";
+    if (show) shown++;
+  });
+  document.getElementById("result-count").textContent =
+    q ? `${shown} result${shown !== 1 ? "s" : ""}` : `{{ consultations|length }} total`;
+}
+function clearSearch() {
+  const inp = document.getElementById("search-input");
+  inp.value = "";
+  filterTable("");
+  inp.focus();
+}
+</script>
+{% endblock %}

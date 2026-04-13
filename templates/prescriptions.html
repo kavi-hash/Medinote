@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="fw-bold mb-0">Prescriptions</h4>
+    <p class="text-muted mb-0" style="font-size:.88rem">
+      All medicines prescribed across consultations
+    </p>
+  </div>
+</div>
+
+{% if grouped %}
+
+{% for group in grouped %}
+{% set c = group.consultation %}
+{% set medicines = group.medicines %}
+
+<div class="card mb-3">
+  <!-- Consultation header -->
+  <div class="px-4 py-3 border-bottom d-flex align-items-center gap-3"
+       style="background:#f9fafb">
+    <div style="width:40px;height:40px;border-radius:50%;background:#eff6ff;
+                display:flex;align-items:center;justify-content:center;
+                font-size:1rem;font-weight:700;color:#1a56db;flex-shrink:0">
+      {{ c.patient_name[0].upper() }}
+    </div>
+    <div class="flex-grow-1">
+      <div class="fw-bold" style="font-size:.95rem">{{ c.patient_name }}</div>
+      <div style="font-size:.8rem;color:#6b7280">
+        <i class="bi bi-person-badge me-1"></i>Dr. {{ c.doctor_name }}
+        &nbsp;·&nbsp;
+        <i class="bi bi-calendar3 me-1"></i>
+        {{ c.created_at.strftime("%d %b %Y") }}
+        &nbsp;·&nbsp;
+        <span class="fw-semibold" style="color:#1a56db">
+          MN-{{ '%04d' % c.id }}
+        </span>
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <span style="background:#eff6ff;color:#1a56db;font-size:.75rem;
+                   font-weight:600;padding:4px 12px;border-radius:20px">
+        {{ medicines|length }} medicine{{ "s" if medicines|length != 1 }}
+      </span>
+      {% if c.status == "approved" %}
+      <span style="background:#ecfdf5;color:#059669;font-size:.75rem;
+                   font-weight:600;padding:4px 12px;border-radius:20px">
+        <i class="bi bi-check-circle me-1"></i>Approved
+      </span>
+      {% endif %}
+      <a href="{{ url_for('consultation.review', id=c.id) }}"
+         class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-eye me-1"></i>View
+      </a>
+    </div>
+  </div>
+
+  <!-- Medicines table -->
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th style="width:5%;padding-left:20px">#</th>
+          <th style="width:25%">Medicine</th>
+          <th style="width:15%">Dosage</th>
+          <th style="width:18%">Frequency</th>
+          <th style="width:15%">Duration</th>
+          <th>Instructions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rx in medicines %}
+        <tr>
+          <td style="padding-left:20px">
+            <span style="width:24px;height:24px;border-radius:50%;
+                         background:#eff6ff;color:#1a56db;font-size:.75rem;
+                         font-weight:700;display:inline-flex;align-items:center;
+                         justify-content:center">
+              {{ loop.index }}
+            </span>
+          </td>
+          <td class="fw-semibold">{{ rx.medicine_name }}</td>
+          <td>
+            {% if rx.dosage %}
+            <span style="background:#eff6ff;color:#1a56db;padding:2px 10px;
+                         border-radius:20px;font-size:.78rem;font-weight:500">
+              {{ rx.dosage }}
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if rx.frequency %}
+            <span style="background:#f0fdf4;color:#059669;padding:2px 10px;
+                         border-radius:20px;font-size:.78rem;font-weight:500">
+              {{ rx.frequency }}
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if rx.duration %}
+            <span style="background:#fffbeb;color:#d97706;padding:2px 10px;
+                         border-radius:20px;font-size:.78rem;font-weight:500">
+              {{ rx.duration }}
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td style="font-size:.85rem;color:#6b7280">
+            {{ rx.instructions or "—" }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endfor %}
+
+{% else %}
+<div class="card">
+  <div class="card-body text-center py-5 text-muted">
+    <i class="bi bi-capsule" style="font-size:3rem;opacity:.3"></i>
+    <p class="mt-3 fw-semibold">No prescriptions yet</p>
+    <p style="font-size:.88rem">
+      Prescriptions will appear here after doctors add medicines
+      during the consultation review.
+    </p>
+    <a href="{{ url_for('consultation.consent') }}"
+       class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-circle me-1"></i>New consultation
+    </a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

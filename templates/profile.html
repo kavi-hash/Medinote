@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="mb-4">
+  <h4 class="fw-bold mb-0">Profile</h4>
+  <p class="text-muted mb-0" style="font-size:.88rem">
+    Manage your account details
+  </p>
+</div>
+
+<div class="row g-3">
+
+  <!-- Left — Profile card -->
+  <div class="col-md-4">
+    <div class="card text-center p-4 mb-3">
+      <div style="width:80px;height:80px;border-radius:50%;
+                  background:linear-gradient(135deg,#1a56db,#1e3a8a);
+                  display:flex;align-items:center;justify-content:center;
+                  font-size:1.8rem;font-weight:700;color:#fff;
+                  margin:0 auto 16px">
+        {{ current_user.name[0].upper() }}
+      </div>
+      <div class="fw-bold" style="font-size:1.1rem">
+        {{ current_user.name }}
+      </div>
+      <div class="text-muted" style="font-size:.85rem">
+        {{ current_user.email }}
+      </div>
+      <span class="badge mt-2" style="background:#eff6ff;color:#1a56db;font-size:.78rem">
+        <i class="bi bi-person-badge me-1"></i>{{ current_user.role | capitalize }}
+      </span>
+      <div class="text-muted mt-2" style="font-size:.78rem">
+        <i class="bi bi-calendar3 me-1"></i>
+        Member since {{ current_user.created_at.strftime("%b %Y") }}
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="card p-3">
+      <div class="fw-bold mb-3" style="font-size:.88rem">
+        <i class="bi bi-bar-chart me-2 text-primary"></i>Your activity
+      </div>
+      {% for label, value, color in [
+        ("Total consultations", total,      "#1a56db"),
+        ("Approved notes",      approved,   "#059669"),
+        ("This month",          this_month, "#d97706")
+      ] %}
+      <div class="d-flex justify-content-between align-items-center mb-2 py-2"
+           style="border-bottom:{{ '1px solid #f3f4f6' if not loop.last else 'none' }}">
+        <span style="font-size:.85rem;color:#6b7280">{{ label }}</span>
+        <span class="fw-bold" style="color:{{ color }}">{{ value }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Right — Edit forms -->
+  <div class="col-md-8">
+
+    <!-- Update name -->
+    <div class="card mb-3">
+      <div class="card-header bg-white py-3 px-4">
+        <div class="fw-bold" style="font-size:.92rem">
+          <i class="bi bi-person-circle me-2 text-primary"></i>
+          Personal information
+        </div>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST">
+          <input type="hidden" name="action" value="update_name"/>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" style="font-size:.83rem">
+                Full name
+              </label>
+              <input type="text" name="name" class="form-control"
+                     value="{{ current_user.name }}" required
+                     style="font-size:.9rem"/>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" style="font-size:.83rem">
+                Email address
+              </label>
+              <input type="email" class="form-control"
+                     value="{{ current_user.email }}" disabled
+                     style="font-size:.9rem;background:#f9fafb"/>
+              <div style="font-size:.75rem;color:#9ca3af;margin-top:4px">
+                Email cannot be changed
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" style="font-size:.83rem">
+                Role
+              </label>
+              <input type="text" class="form-control"
+                     value="{{ current_user.role | capitalize }}" disabled
+                     style="font-size:.9rem;background:#f9fafb"/>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary mt-3">
+            <i class="bi bi-check-circle me-2"></i>Save changes
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Change password -->
+    <div class="card">
+      <div class="card-header bg-white py-3 px-4">
+        <div class="fw-bold" style="font-size:.92rem">
+          <i class="bi bi-lock me-2 text-warning"></i>
+          Change password
+        </div>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST">
+          <input type="hidden" name="action" value="change_password"/>
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-semibold" style="font-size:.83rem">
+                Current password
+              </label>
+              <input type="password" name="current_password"
+                     class="form-control" required style="font-size:.9rem"
+                     placeholder="Enter current password"/>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" style="font-size:.83rem">
+                New password
+              </label>
+              <input type="password" name="new_password"
+                     class="form-control" required style="font-size:.9rem"
+                     placeholder="Min 6 characters"/>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" style="font-size:.83rem">
+                Confirm new password
+              </label>
+              <input type="password" name="confirm_password"
+                     class="form-control" required style="font-size:.9rem"
+                     placeholder="Repeat new password"/>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-warning mt-3">
+            <i class="bi bi-lock me-2"></i>Change password
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

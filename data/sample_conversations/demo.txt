@@ -1,0 +1,14 @@
+DOCTOR: Good morning. What brings you in today?
+PATIENT: I have been having a severe headache for the past 3 days. 
+         It started gradually and is now quite bad.
+DOCTOR: On a scale of 1 to 10 how bad is the pain?
+PATIENT: Around a 7. I also have mild fever and sensitivity to light.
+DOCTOR: Have you taken any medication for this?
+PATIENT: I took paracetamol 500mg twice a day but it only helps a little.
+DOCTOR: Any nausea or vomiting?
+PATIENT: Some nausea yes, but no vomiting.
+DOCTOR: Do you have any known allergies?
+PATIENT: I am allergic to penicillin.
+DOCTOR: Alright. Based on your symptoms this looks like a tension headache 
+        with a viral component. I will prescribe ibuprofen 400mg and advise 
+        rest and hydration. Please come back if symptoms worsen after 3 days.

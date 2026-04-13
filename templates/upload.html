@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <div class="d-flex align-items-center mb-4">
+      <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-outline-secondary btn-sm me-3">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <div>
+        <h4 class="fw-bold mb-0">New consultation</h4>
+        <p class="text-muted mb-0" style="font-size:.9rem">
+          Patient: <strong>{{ patient_name }}</strong> &nbsp;·&nbsp;
+          Doctor: <strong>{{ doctor_name }}</strong>
+        </p>
+      </div>
+    </div>
+
+    <!-- Method selector tabs -->
+    <div class="d-flex gap-2 mb-4">
+      <button class="btn btn-primary flex-fill py-3" id="tab-record"
+              onclick="switchTab('record')">
+        <i class="bi bi-mic-fill me-2"></i>Record live
+        <div style="font-size:.75rem;opacity:.8;margin-top:2px">Use microphone</div>
+      </button>
+      <button class="btn btn-outline-primary flex-fill py-3" id="tab-upload"
+              onclick="switchTab('upload')">
+        <i class="bi bi-cloud-upload me-2"></i>Upload file
+        <div style="font-size:.75rem;opacity:.8;margin-top:2px">WAV, MP3, M4A</div>
+      </button>
+    </div>
+
+    <!-- Record panel -->
+    <div id="panel-record">
+      <div class="card p-4 text-center">
+        <!-- Visualizer -->
+        <canvas id="visualizer" height="60"
+                style="width:100%;border-radius:8px;background:#f8f9fa;margin-bottom:20px"></canvas>
+
+        <!-- Timer -->
+        <div id="timer" style="font-size:2.5rem;font-weight:700;color:#1a56db;
+                                font-variant-numeric:tabular-nums;letter-spacing:2px">
+          00:00
+        </div>
+        <div id="rec-status" class="text-muted mb-4" style="font-size:.9rem">
+          Ready to record
+        </div>
+
+        <!-- Controls -->
+        <div class="d-flex justify-content-center gap-3 mb-4">
+          <button class="btn btn-danger btn-lg px-5 py-3" id="btn-record"
+                  onclick="startRecording()" style="border-radius:50px">
+            <i class="bi bi-mic-fill me-2"></i>Start recording
+          </button>
+          <button class="btn btn-warning btn-lg px-4 py-3 d-none" id="btn-pause"
+                  onclick="pauseRecording()" style="border-radius:50px">
+            <i class="bi bi-pause-fill"></i>
+          </button>
+          <button class="btn btn-secondary btn-lg px-5 py-3 d-none" id="btn-stop"
+                  onclick="stopRecording()" style="border-radius:50px">
+            <i class="bi bi-stop-fill me-2"></i>Stop
+          </button>
+        </div>
+
+        <!-- Playback (shown after recording) -->
+        <div id="playback-section" class="d-none">
+          <div class="alert border-0 mb-3"
+               style="background:#ecfdf5;border-left:4px solid #059669 !important;
+                      border-left-style:solid !important">
+            <i class="bi bi-check-circle-fill text-success me-2"></i>
+            <strong>Recording complete!</strong> Review before submitting.
+          </div>
+          <audio id="playback-audio" controls class="w-100 mb-3" style="height:40px"></audio>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary flex-fill" onclick="discardRecording()">
+              <i class="bi bi-arrow-counterclockwise me-2"></i>Record again
+            </button>
+            <button class="btn btn-primary flex-fill" id="btn-submit-rec"
+                    onclick="submitRecording()">
+              <i class="bi bi-cpu me-2"></i>Submit for processing
+            </button>
+          </div>
+        </div>
+
+        <!-- Recording tips -->
+        <div class="mt-4 text-start p-3 rounded" style="background:#f8f9fa">
+          <div class="fw-semibold mb-2" style="font-size:.85rem">
+            <i class="bi bi-lightbulb text-warning me-1"></i>Recording tips
+          </div>
+          <ul class="mb-0 text-muted" style="font-size:.82rem;padding-left:16px">
+            <li>Speak clearly and at a normal pace</li>
+            <li>Minimise background noise</li>
+            <li>Doctor speaks first, then patient</li>
+            <li>State patient name and symptoms clearly</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upload panel (hidden by default) -->
+    <div id="panel-upload" class="d-none">
+      <div class="card p-4">
+        <form method="POST" enctype="multipart/form-data" id="upload-form">
+          <div class="border rounded-3 p-4 text-center bg-light mb-4"
+               id="drop-zone" style="border-style:dashed!important;cursor:pointer">
+            <i class="bi bi-cloud-upload text-primary" style="font-size:2.5rem"></i>
+            <p class="mt-2 mb-1 fw-semibold">Click to select or drag & drop</p>
+            <p class="text-muted mb-2" style="font-size:.85rem">
+              WAV, MP3, M4A, OGG, WEBM — max 100MB
+            </p>
+            <input type="file" name="audio_file" id="audio-input"
+                   accept=".wav,.mp3,.m4a,.ogg,.webm" class="d-none" required/>
+            <div id="file-info" class="d-none mt-2">
+              <span class="badge bg-primary px-3 py-2" id="file-name"></span>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary w-100 py-2" id="submit-btn">
+            <i class="bi bi-cpu me-2"></i>Upload and start AI processing
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- AI steps info -->
+    <div class="row g-2 mt-3">
+      {% for icon, color, label in [
+        ("bi-soundwave",      "#1a56db", "Speech-to-text"),
+        ("bi-people",         "#059669", "Speaker detection"),
+        ("bi-search-heart",   "#d97706", "Entity extraction"),
+        ("bi-file-medical",   "#0891b2", "SOAP note generation")
+      ] %}
+      <div class="col-3">
+        <div class="card p-2 text-center">
+          <i class="bi {{ icon }}" style="font-size:1.3rem;color:{{ color }}"></i>
+          <div style="font-size:.72rem;color:#6b7280;margin-top:4px">{{ label }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Tab switching ──────────────────────────────────────────
+function switchTab(tab) {
+  const isRecord = tab === 'record';
+  document.getElementById('panel-record').classList.toggle('d-none', !isRecord);
+  document.getElementById('panel-upload').classList.toggle('d-none',  isRecord);
+  document.getElementById('tab-record').className = isRecord
+    ? 'btn btn-primary flex-fill py-3'
+    : 'btn btn-outline-primary flex-fill py-3';
+  document.getElementById('tab-upload').className = isRecord
+    ? 'btn btn-outline-primary flex-fill py-3'
+    : 'btn btn-primary flex-fill py-3';
+}
+
+// ── Recorder state ─────────────────────────────────────────
+let mediaRecorder, audioChunks = [], audioBlob = null;
+let timerInterval, seconds = 0, isPaused = false;
+let audioCtx, analyser, animFrame;
+
+// ── Timer ──────────────────────────────────────────────────
+function updateTimer() {
+  if (!isPaused) seconds++;
+  const m = String(Math.floor(seconds / 60)).padStart(2,'0');
+  const s = String(seconds % 60).padStart(2,'0');
+  document.getElementById('timer').textContent = `${m}:${s}`;
+}
+
+// ── Visualizer ─────────────────────────────────────────────
+function startVisualizer(stream) {
+  audioCtx  = new AudioContext();
+  analyser  = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  audioCtx.createMediaStreamSource(stream).connect(analyser);
+
+  const canvas = document.getElementById('visualizer');
+  const ctx    = canvas.getContext('2d');
+  const buf    = new Uint8Array(analyser.frequencyBinCount);
+
+  function draw() {
+    animFrame = requestAnimationFrame(draw);
+    analyser.getByteFrequencyData(buf);
+    canvas.width = canvas.offsetWidth;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const barW  = (canvas.width / buf.length) * 2.5;
+    let   x     = 0;
+    for (let i = 0; i < buf.length; i++) {
+      const h = (buf[i] / 255) * canvas.height;
+      const r = Math.floor(26  + (buf[i] / 255) * 200);
+      const g = Math.floor(86  + (buf[i] / 255) * 50);
+      const b = Math.floor(219 - (buf[i] / 255) * 100);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(x, canvas.height - h, barW - 1, h);
+      x += barW;
+    }
+  }
+  draw();
+}
+
+function stopVisualizer() {
+  cancelAnimationFrame(animFrame);
+  if (audioCtx) audioCtx.close();
+  const canvas = document.getElementById('visualizer');
+  canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+}
+
+// ── Start recording ────────────────────────────────────────
+async function startRecording() {
+  audioChunks = [];
+  seconds     = 0;
+  isPaused    = false;
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+      const url = URL.createObjectURL(audioBlob);
+      document.getElementById('playback-audio').src = url;
+      document.getElementById('playback-section').classList.remove('d-none');
+      document.getElementById('rec-status').textContent = 'Recording saved';
+      stopVisualizer();
+    };
+
+    mediaRecorder.start(100);
+    timerInterval = setInterval(updateTimer, 1000);
+    startVisualizer(stream);
+
+    document.getElementById('btn-record').classList.add('d-none');
+    document.getElementById('btn-pause').classList.remove('d-none');
+    document.getElementById('btn-stop').classList.remove('d-none');
+    document.getElementById('rec-status').innerHTML =
+      '<span class="text-danger"><i class="bi bi-record-circle me-1"></i>Recording...</span>';
+
+  } catch (err) {
+    alert('Microphone access denied. Please allow microphone access and try again.');
+  }
+}
+
+// ── Pause / resume ─────────────────────────────────────────
+function pauseRecording() {
+  if (!mediaRecorder) return;
+  const btn = document.getElementById('btn-pause');
+  if (mediaRecorder.state === 'recording') {
+    mediaRecorder.pause();
+    isPaused = true;
+    btn.innerHTML = '<i class="bi bi-play-fill"></i>';
+    document.getElementById('rec-status').innerHTML =
+      '<span class="text-warning"><i class="bi bi-pause-circle me-1"></i>Paused</span>';
+  } else if (mediaRecorder.state === 'paused') {
+    mediaRecorder.resume();
+    isPaused = false;
+    btn.innerHTML = '<i class="bi bi-pause-fill"></i>';
+    document.getElementById('rec-status').innerHTML =
+      '<span class="text-danger"><i class="bi bi-record-circle me-1"></i>Recording...</span>';
+  }
+}
+
+// ── Stop recording ─────────────────────────────────────────
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+  }
+  clearInterval(timerInterval);
+  document.getElementById('btn-pause').classList.add('d-none');
+  document.getElementById('btn-stop').classList.add('d-none');
+}
+
+// ── Discard ────────────────────────────────────────────────
+function discardRecording() {
+  audioBlob = null;
+  audioChunks = [];
+  seconds = 0;
+  document.getElementById('timer').textContent = '00:00';
+  document.getElementById('playback-section').classList.add('d-none');
+  document.getElementById('btn-record').classList.remove('d-none');
+  document.getElementById('rec-status').textContent = 'Ready to record';
+  const canvas = document.getElementById('visualizer');
+  canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+}
+
+// ── Submit recording ───────────────────────────────────────
+async function submitRecording() {
+  if (!audioBlob) return;
+
+  const btn = document.getElementById('btn-submit-rec');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+
+  const formData = new FormData();
+  formData.append('audio', audioBlob, 'recording.wav');
+
+  const res  = await fetch('/api/save-recording', { method:'POST', body:formData });
+  const data = await res.json();
+
+  if (data.status === 'success') {
+    btn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Done! Redirecting...';
+    setTimeout(() => window.location.href = data.redirect, 800);
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cpu me-2"></i>Submit for processing';
+    alert('Upload failed: ' + data.message);
+  }
+}
+
+// ── File upload drag & drop ────────────────────────────────
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('audio-input');
+const fileInfo  = document.getElementById('file-info');
+const fileName  = document.getElementById('file-name');
+
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length > 0) {
+    fileName.textContent = fileInput.files[0].name;
+    fileInfo.classList.remove('d-none');
+  }
+});
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault(); dropZone.classList.add('border-primary');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-primary'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('border-primary');
+  fileInput.files = e.dataTransfer.files;
+  fileName.textContent = e.dataTransfer.files[0].name;
+  fileInfo.classList.remove('d-none');
+});
+document.getElementById('upload-form').addEventListener('submit', () => {
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+});
+</script>
+{% endblock %}

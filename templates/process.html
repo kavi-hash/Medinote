@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 text-center">
+    <div class="card p-5">
+      <div id="status-icon">
+        <div class="spinner-border text-primary" style="width:3.5rem;height:3.5rem;" role="status"></div>
+      </div>
+      <h4 class="fw-bold mt-4" id="status-title">Processing consultation...</h4>
+      <p class="text-muted" id="status-msg">
+        Running AI pipeline for <strong>{{ consultation.patient_name }}</strong>
+      </p>
+
+      <!-- Progress steps -->
+      <div class="text-start mt-4">
+        {% for step in [
+          ("transcription-step",  "bi-soundwave",     "Transcribing audio with Whisper"),
+          ("entity-step",         "bi-search-heart",  "Extracting clinical entities"),
+          ("note-step",           "bi-file-medical",  "Generating SOAP note with Groq")
+        ] %}
+        <div class="d-flex align-items-center mb-3" id="{{ step[0] }}">
+          <div class="me-3">
+            <i class="bi {{ step[1] }} text-muted" style="font-size:1.3rem"></i>
+          </div>
+          <div class="flex-grow-1">
+            <div style="font-size:0.9rem" class="fw-semibold">{{ step[2] }}</div>
+          </div>
+          <div class="step-status text-muted">
+            <i class="bi bi-clock"></i>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const consultationId = {{ consultation.id }};
+
+function setStep(stepId, state) {
+  const el = document.getElementById(stepId);
+  const icon = el.querySelector(".step-status");
+  if (state === "running") {
+    icon.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div>';
+  } else if (state === "done") {
+    icon.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>';
+  } else if (state === "error") {
+    icon.innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
+  }
+}
+
+async function runPipeline() {
+  setStep("transcription-step", "running");
+
+  const res  = await fetch(`/api/run-pipeline/${consultationId}`, { method: "POST" });
+  const data = await res.json();
+
+  if (data.status === "success") {
+    setStep("transcription-step", "done");
+    setStep("entity-step", "done");
+    setStep("note-step", "done");
+
+    document.getElementById("status-icon").innerHTML =
+      '<i class="bi bi-check-circle-fill text-success" style="font-size:3.5rem"></i>';
+    document.getElementById("status-title").textContent = "Processing complete!";
+    document.getElementById("status-msg").textContent   = "Redirecting to review page...";
+
+    setTimeout(() => window.location.href = data.redirect, 1500);
+  } else {
+    setStep("transcription-step", "error");
+    document.getElementById("status-icon").innerHTML =
+      '<i class="bi bi-x-circle-fill text-danger" style="font-size:3.5rem"></i>';
+    document.getElementById("status-title").textContent = "Processing failed";
+    document.getElementById("status-msg").innerHTML =
+      `<span class="text-danger">${data.message}</span>
+       <br><br>
+       <a href="/dashboard" class="btn btn-outline-secondary btn-sm">
+         <i class="bi bi-arrow-left me-1"></i>Back to dashboard
+       </a>`;
+  }
+}
+
+runPipeline();
+</script>
+{% endblock %}

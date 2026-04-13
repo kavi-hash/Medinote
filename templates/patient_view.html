@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Your Report — MediNote AI</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet"/>
+  <style>
+    body { background:#f0f4f8; font-family:'Segoe UI',sans-serif; }
+
+    .top-bar {
+      background:linear-gradient(135deg,#1a56db,#1e3a8a);
+      color:#fff; padding:16px 20px;
+    }
+    .section-card {
+      background:#fff; border-radius:14px;
+      box-shadow:0 1px 8px rgba(0,0,0,.07);
+      margin-bottom:14px; overflow:hidden;
+    }
+    .section-hdr {
+      padding:12px 16px; font-size:.78rem;
+      font-weight:700; text-transform:uppercase;
+      letter-spacing:.6px; border-bottom:1px solid #f3f4f6;
+      display:flex; align-items:center; gap:8px;
+    }
+    .section-body { padding:16px; }
+
+    /* Prescription rows */
+    .rx-item {
+      display:flex; gap:12px; padding:12px;
+      border-radius:10px; background:#f8faff;
+      border:1px solid #e0e7ff; margin-bottom:10px;
+    }
+    .rx-item:last-child { margin-bottom:0; }
+    .rx-num {
+      width:28px; height:28px; border-radius:50%;
+      background:#1a56db; color:#fff;
+      display:flex; align-items:center; justify-content:center;
+      font-size:.78rem; font-weight:700; flex-shrink:0; margin-top:2px;
+    }
+    .rx-name { font-weight:700; font-size:.95rem; color:#1f2937; }
+    .rx-pills { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    .rx-pill {
+      padding:3px 10px; border-radius:20px;
+      font-size:.75rem; font-weight:500;
+    }
+
+    /* SOAP sections */
+    .soap-item { margin-bottom:14px; }
+    .soap-item:last-child { margin-bottom:0; }
+    .soap-label {
+      font-size:.75rem; font-weight:700;
+      text-transform:uppercase; letter-spacing:.5px;
+      margin-bottom:6px; display:flex; align-items:center; gap:6px;
+    }
+    .soap-text {
+      font-size:.88rem; color:#374151; line-height:1.65;
+      background:#f9fafb; border-radius:8px; padding:10px 12px;
+      border-left:3px solid #e5e7eb;
+    }
+
+    /* Vitals grid */
+    .vitals-grid {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+    }
+    .vital-box {
+      background:#f9fafb; border-radius:8px;
+      padding:8px 10px; text-align:center;
+    }
+    .vital-label { font-size:.7rem; color:#9ca3af; margin-bottom:2px; }
+    .vital-val   { font-size:.92rem; font-weight:700; color:#1f2937; }
+    .vital-unit  { font-size:.7rem; color:#9ca3af; }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="top-bar">
+  <div style="max-width:620px;margin:0 auto">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-heart-pulse-fill" style="font-size:1.5rem"></i>
+      <div>
+        <div class="fw-bold" style="font-size:1rem">MediNote AI</div>
+        <div style="font-size:.76rem;opacity:.75">Clinical Documentation System</div>
+      </div>
+      <div class="ms-auto text-end">
+        <div style="font-size:.7rem;opacity:.7">Report ID</div>
+        <div class="fw-bold" style="font-size:.95rem">
+          MN-{{ '%04d' % consultation.id }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="max-width:620px;margin:0 auto;padding:16px 12px 32px">
+
+  <!-- Patient info card -->
+  <div class="section-card">
+    <div class="section-body">
+      <div class="d-flex align-items-center gap-3">
+        <div style="width:52px;height:52px;border-radius:50%;background:#eff6ff;
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:1.3rem;font-weight:700;color:#1a56db;flex-shrink:0">
+          {{ consultation.patient_name[0].upper() }}
+        </div>
+        <div class="flex-grow-1">
+          <div class="fw-bold" style="font-size:1.05rem">
+            {{ consultation.patient_name }}
+          </div>
+          <div style="font-size:.82rem;color:#6b7280">
+            <i class="bi bi-person-badge me-1"></i>Dr. {{ consultation.doctor_name }}
+            &nbsp;·&nbsp;
+            <i class="bi bi-calendar3 me-1"></i>
+            {{ consultation.created_at.strftime("%d %b %Y") }}
+          </div>
+        </div>
+        <span style="background:#ecfdf5;color:#059669;font-size:.78rem;
+                     font-weight:600;padding:4px 12px;border-radius:20px">
+          <i class="bi bi-check-circle-fill me-1"></i>Approved
+        </span>
+      </div>
+
+      <!-- Patient details from entities -->
+      {% set em = {} %}
+      {% for e in entities %}{% set _ = em.update({e.entity_type: e.entity_value}) %}{% endfor %}
+
+      {% if em.get("age") or em.get("gender") or em.get("blood_group") %}
+      <div class="d-flex flex-wrap gap-2 mt-3 pt-3"
+           style="border-top:1px solid #f3f4f6">
+        {% if em.get("age") %}
+        <span style="background:#f3f4f6;border-radius:8px;padding:4px 12px;
+                     font-size:.8rem;color:#374151">
+          <i class="bi bi-person me-1 text-muted"></i>Age: {{ em["age"] }}
+        </span>
+        {% endif %}
+        {% if em.get("gender") %}
+        <span style="background:#f3f4f6;border-radius:8px;padding:4px 12px;
+                     font-size:.8rem;color:#374151">
+          {{ em["gender"] }}
+        </span>
+        {% endif %}
+        {% if em.get("blood_group") %}
+        <span style="background:#fef2f2;border-radius:8px;padding:4px 12px;
+                     font-size:.8rem;color:#dc2626;font-weight:600">
+          <i class="bi bi-droplet-fill me-1"></i>{{ em["blood_group"] }}
+        </span>
+        {% endif %}
+        {% if em.get("department") %}
+        <span style="background:#eff6ff;border-radius:8px;padding:4px 12px;
+                     font-size:.8rem;color:#1a56db">
+          {{ em["department"] }}
+        </span>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Allergies warning (if any) -->
+  {% if em.get("allergies") and em["allergies"] not in ["—","none","None",""] %}
+  <div class="section-card" style="border-left:4px solid #ef4444">
+    <div class="section-body d-flex gap-3 align-items-start py-3">
+      <i class="bi bi-exclamation-triangle-fill text-danger"
+         style="font-size:1.2rem;flex-shrink:0;margin-top:2px"></i>
+      <div>
+        <div class="fw-bold text-danger mb-1" style="font-size:.88rem">
+          Known allergies — inform your pharmacist
+        </div>
+        <div style="font-size:.85rem;color:#374151">{{ em["allergies"] }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Vitals -->
+  {% set vital_map = {
+    "temperature": ("Temp","°F"),
+    "blood_pressure": ("BP","mmHg"),
+    "pulse": ("Pulse","bpm"),
+    "spo2": ("SpO₂","%"),
+    "weight": ("Weight","kg"),
+    "height": ("Height","cm")
+  } %}
+  {% set has_vitals = [] %}
+  {% for k in vital_map %}{% if em.get(k) %}{% set _ = has_vitals.append(k) %}{% endif %}{% endfor %}
+
+  {% if has_vitals %}
+  <div class="section-card">
+    <div class="section-hdr" style="background:#fdf4ff">
+      <i class="bi bi-heart-pulse" style="color:#9333ea"></i>
+      <span style="color:#9333ea">Vitals</span>
+    </div>
+    <div class="section-body">
+      <div class="vitals-grid">
+        {% for k in has_vitals %}
+        <div class="vital-box">
+          <div class="vital-label">{{ vital_map[k][0] }}</div>
+          <div class="vital-val">{{ em[k] }}</div>
+          <div class="vital-unit">{{ vital_map[k][1] }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Prescription -->
+  {% if prescriptions %}
+  <div class="section-card">
+    <div class="section-hdr" style="background:#eff6ff">
+      <i class="bi bi-capsule text-primary"></i>
+      <span class="text-primary">Prescription</span>
+      <span style="margin-left:auto;background:#1a56db;color:#fff;
+                   border-radius:20px;padding:1px 9px;font-size:.72rem">
+        {{ prescriptions|length }} medicine{{ "s" if prescriptions|length != 1 }}
+      </span>
+    </div>
+    <div class="section-body">
+      {% for rx in prescriptions %}
+      <div class="rx-item">
+        <div class="rx-num">{{ loop.index }}</div>
+        <div class="flex-grow-1">
+          <div class="rx-name">{{ rx.medicine_name }}</div>
+          <div class="rx-pills">
+            {% if rx.dosage %}
+            <span class="rx-pill" style="background:#eff6ff;color:#1a56db">
+              <i class="bi bi-capsule me-1"></i>{{ rx.dosage }}
+            </span>
+            {% endif %}
+            {% if rx.frequency %}
+            <span class="rx-pill" style="background:#f0fdf4;color:#059669">
+              <i class="bi bi-clock me-1"></i>{{ rx.frequency }}
+            </span>
+            {% endif %}
+            {% if rx.duration %}
+            <span class="rx-pill" style="background:#fffbeb;color:#d97706">
+              <i class="bi bi-calendar-range me-1"></i>{{ rx.duration }}
+            </span>
+            {% endif %}
+          </div>
+          {% if rx.instructions %}
+          <div style="font-size:.78rem;color:#6b7280;margin-top:6px">
+            <i class="bi bi-info-circle me-1"></i>{{ rx.instructions }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+      <!-- Pharmacy note -->
+      <div class="d-flex gap-2 mt-3 p-3 rounded-3"
+           style="background:#fffbeb;border:1px solid #fde68a">
+        <i class="bi bi-shop" style="color:#d97706;font-size:1rem;flex-shrink:0"></i>
+        <div style="font-size:.78rem;color:#92400e;line-height:1.5">
+          <strong>For the pharmacist:</strong> Please dispense as prescribed.
+          Show this screen or the printed QR slip at the pharmacy counter.
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="section-card">
+    <div class="section-hdr" style="background:#eff6ff">
+      <i class="bi bi-capsule text-primary"></i>
+      <span class="text-primary">Prescription</span>
+    </div>
+    <div class="section-body text-center text-muted py-3" style="font-size:.88rem">
+      <i class="bi bi-capsule" style="font-size:1.5rem;opacity:.3"></i>
+      <p class="mt-2 mb-0">No medicines prescribed for this consultation</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Clinical notes -->
+  {% if note %}
+  <div class="section-card">
+    <div class="section-hdr" style="background:#f0fdf4">
+      <i class="bi bi-file-medical text-success"></i>
+      <span class="text-success">Clinical notes</span>
+    </div>
+    <div class="section-body">
+      {% for section, label, color, bg, icon in [
+        ("subjective","What you reported",  "#1a56db","#eff6ff",  "bi-person-lines-fill"),
+        ("objective", "Doctor's findings",  "#0891b2","#ecfeff",  "bi-clipboard2-data"),
+        ("assessment","Diagnosis",          "#d97706","#fffbeb",  "bi-lightbulb"),
+        ("plan",      "Treatment plan",     "#059669","#ecfdf5",  "bi-calendar2-check")
+      ] %}
+      <div class="soap-item">
+        <div class="soap-label" style="color:{{ color }}">
+          <span style="background:{{ bg }};padding:3px 8px;border-radius:6px">
+            <i class="bi {{ icon }} me-1"></i>{{ label }}
+          </span>
+        </div>
+        <div class="soap-text"
+             style="border-left-color:{{ color }}">
+          {{ note.edited_note | soap_section(section) }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Footer -->
+  <div class="text-center py-3" style="font-size:.75rem;color:#9ca3af">
+    <i class="bi bi-shield-check me-1" style="color:#1a56db"></i>
+    Generated by MediNote AI &nbsp;·&nbsp;
+    Report MN-{{ '%04d' % consultation.id }}<br>
+    {% if consultation.approved_at %}
+    Approved {{ consultation.approved_at.strftime("%d %b %Y at %H:%M") }}
+    {% endif %}
+    <div class="mt-2 p-2 rounded" style="background:#fef2f2;color:#b91c1c;font-size:.72rem">
+      ⚠ This report is confidential and intended for
+      {{ consultation.patient_name }} only.
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
