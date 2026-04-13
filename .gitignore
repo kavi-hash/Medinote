@@ -9,3 +9,5 @@ dist/
 build/
 node_modules/
 venv/
+
+.env
